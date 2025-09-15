@@ -1,0 +1,41 @@
+{
+  "name": "noriba_test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "wdio wdio.conf.ts",
+    "wdio": "wdio run ./wdio.conf.ts",
+    "test:email": "wdio run ./wdio.conf.ts --spec test/specs/5-email-verification.ts",
+    "test:email-simple": "wdio run ./wdio.conf.ts --spec test/specs/6-simple-email-verification.ts",
+    "demo:email-flow": "wdio run ./wdio.conf.ts --spec test/specs/7-demo-email-flow.ts",
+    "setup:gmail": "node scripts/setup-gmail-oauth.js",
+    "test:email-connection": "node scripts/test-email-connection.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "google-auth-library": "^9.15.1",
+    "googleapis": "^144.0.0",
+    "imap": "^0.8.19",
+    "mailparser": "^3.6.5",
+    "webdriverio": "^9.19.2"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^24.3.1",
+    "@wdio/appium-service": "^9.19.2",
+    "@wdio/cli": "^9.19.2",
+    "@wdio/local-runner": "^9.19.2",
+    "@wdio/mocha-framework": "^9.19.2",
+    "@wdio/spec-reporter": "^9.19.2",
+    "@wdio/visual-service": "^9.0.0",
+    "appium": "^3.0.2",
+    "appium-uiautomator2-driver": "^5.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
+  }
+}
