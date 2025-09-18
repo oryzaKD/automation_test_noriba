@@ -7,7 +7,7 @@ HOW TO RUNNING THE AUTOMATION TEST CODE WITH APPIUM (ANDROID):
 
 2. **Open Android Studio, then run one of the Android emulators that you’ve created and make sure its configuration matches the capabilities in the wdio.conf.js file.**
    
-   ![image](https://github.com/user-attachments/assets/d0a2f3c4-6043-4acf-8a98-e4c6ae004747)
+   <img width="1512" height="945" alt="Screenshot 2025-09-18 at 10 42 32 AM" src="https://github.com/user-attachments/assets/d849180e-c244-41a2-ae30-fbab971aa89f" />
 
 3. **Open Appium Inspector, then click "Start Session" to start a session alongside the emulator running in Android Studio.**
 
