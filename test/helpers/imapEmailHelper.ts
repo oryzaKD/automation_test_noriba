@@ -23,17 +23,42 @@ export class ImapEmailHelper {
     }
 
     /**
+     * Get the next UID that will be assigned to a new message (UIDNEXT)
+     */
+    async getNextUid(): Promise<number> {
+        return new Promise((resolve, reject) => {
+            this.imap.openBox('INBOX', true, (err: unknown, box: any) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                resolve(typeof box.uidnext === 'number' ? box.uidnext : parseInt(String(box.uidnext || 0), 10));
+            });
+        });
+    }
+
+    /**
      * Get verification token from email using IMAP
      * @param emailAddress - Email address to check
-     * @param subjectKeyword - Keyword to search in email subject
-     * @param timeout - Timeout in milliseconds (default: 60000)
+     * @param subjectKeywordOrOptions - Keyword or options { subjectKeyword, timeout, anchorUid }
+     * @param timeoutArg - Timeout if using legacy signature
      * @returns Promise<string> - The verification token
      */
     async getVerificationToken(
         emailAddress: string,
-        subjectKeyword: string = 'verification',
-        timeout: number = 60000
+        subjectKeywordOrOptions: string | { subjectKeyword?: string; timeout?: number; anchorUid?: number } = 'verification',
+        timeoutArg: number = 60000
     ): Promise<string> {
+        const { subjectKeyword, timeout, anchorUid } = ((): { subjectKeyword: string; timeout: number; anchorUid?: number } => {
+            if (typeof subjectKeywordOrOptions === 'string') {
+                return { subjectKeyword: subjectKeywordOrOptions || 'verification', timeout: timeoutArg ?? 60000, anchorUid: undefined };
+            }
+            return {
+                subjectKeyword: subjectKeywordOrOptions.subjectKeyword ?? 'verification',
+                timeout: subjectKeywordOrOptions.timeout ?? 60000,
+                anchorUid: subjectKeywordOrOptions.anchorUid
+            };
+        })();
         return new Promise((resolve, reject) => {
             const startTime = Date.now();
             let tokenFound = false;
@@ -50,11 +75,18 @@ export class ImapEmailHelper {
                         }
 
                         // Search for unread emails with specific subject
-                        const searchCriteria = [
+                        const searchCriteria: any[] = [
                             'UNSEEN',
                             ['TO', emailAddress],
                             ['SUBJECT', subjectKeyword]
                         ];
+
+                        // If we have an anchor UID, only fetch messages after it
+                        // IMAP servers typically support UID ranges using the 'UID' search key
+                        // e.g., ['UID', `${anchorUid + 1}:*`]
+                        if (anchorUid && Number.isFinite(anchorUid)) {
+                            searchCriteria.push(['UID', `${anchorUid + 1}:*`]);
+                        }
 
                         this.imap.search(searchCriteria, (err: unknown, results: any[]) => {
                             if (err) {

@@ -26,43 +26,69 @@ export class EmailHelper {
     /**
      * Get verification token from email
      * @param emailAddress - Email address to check
-     * @param subjectKeyword - Keyword to search in email subject
-     * @param timeout - Timeout in milliseconds (default: 60000)
+     * @param subjectKeywordOrOptions - Keyword to search in subject OR options object
+     * @param timeoutArg - Timeout in milliseconds (default: 60000) if using legacy signature
      * @returns Promise<string> - The verification token
      */
     async getVerificationToken(
-        emailAddress: string, 
-        subjectKeyword: string = 'verification',
-        timeout: number = 60000
+        emailAddress: string,
+        subjectKeywordOrOptions: string | { subjectKeyword?: string; timeout?: number; anchorTs?: number } = 'verification',
+        timeoutArg: number = 60000
     ): Promise<string> {
+        const { subjectKeyword, timeout, anchorTs } = ((): { subjectKeyword: string; timeout: number; anchorTs?: number } => {
+            if (typeof subjectKeywordOrOptions === 'string') {
+                return { subjectKeyword: subjectKeywordOrOptions || 'verification', timeout: timeoutArg ?? 60000, anchorTs: undefined };
+            }
+            return {
+                subjectKeyword: subjectKeywordOrOptions.subjectKeyword ?? 'verification',
+                timeout: subjectKeywordOrOptions.timeout ?? 60000,
+                anchorTs: subjectKeywordOrOptions.anchorTs
+            };
+        })();
+
         const startTime = Date.now();
         
         while (Date.now() - startTime < timeout) {
             try {
-                // Search for emails
+                // Search for unread emails to the target address with subject keyword
                 const response = await this.gmail.users.messages.list({
                     userId: 'me',
                     q: `to:${emailAddress} subject:${subjectKeyword} is:unread`
                 });
 
-                if (response.data.messages && response.data.messages.length > 0) {
-                    // Get the latest email
-                    const messageId = response.data.messages[0].id;
-                    const message = await this.gmail.users.messages.get({
-                        userId: 'me',
-                        id: messageId
-                    });
+                const messages = response.data.messages || [];
+                if (messages.length > 0) {
+                    // Iterate from newest to oldest
+                    for (const { id: messageId } of messages) {
+                        if (!messageId) continue;
 
-                    // Extract token from email body
-                    const token = this.extractTokenFromEmail(message.data);
-                    if (token) {
-                        // Mark email as read
-                        await this.gmail.users.messages.modify({
+                        const message = await this.gmail.users.messages.get({
                             userId: 'me',
-                            id: messageId,
-                            resource: { removeLabelIds: ['UNREAD'] }
+                            id: messageId
                         });
-                        return token;
+
+                        const internalDateMs = message.data.internalDate ? parseInt(message.data.internalDate, 10) : 0;
+                        if (anchorTs && internalDateMs <= anchorTs) {
+                            // Skip emails that arrived before the anchor
+                            continue;
+                        }
+
+                        // Extract token from email body
+                        const token = this.extractTokenFromEmail(message.data);
+                        if (token) {
+                            try {
+                                // Mark email as read
+                                await this.gmail.users.messages.modify({
+                                    userId: 'me',
+                                    id: messageId,
+                                    resource: { removeLabelIds: ['UNREAD'] }
+                                });
+                            } catch (modifyErr) {
+                                // Non-fatal if lacking modify scope
+                                console.log('Warning: could not modify message labels:', modifyErr);
+                            }
+                            return token;
+                        }
                     }
                 }
             } catch (error) {
