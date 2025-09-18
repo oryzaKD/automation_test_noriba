@@ -230,7 +230,7 @@ describe('Register application', () => {
       emailAnchorTs = Date.now();
     }
 
-    // Click Lanjut
+    // Klik Lanjut
     await $('//android.widget.Button[@content-desc="Lanjut"]').click();
 
     // Wait for email verification screen
