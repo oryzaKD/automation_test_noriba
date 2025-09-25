@@ -249,7 +249,7 @@ describe('Register application', () => {
 
     // Ambil OTP yang dikirim saat ini, lalu tunggu 2 menit agar kadaluarsa
     console.log('🔍 Mengambil OTP dari email untuk uji kadaluarsa...');
-    const tokenFetchOptions: any = { subjectKeyword: 'verifikasi', timeout: 100000 };
+    const tokenFetchOptions: any = { subjectKeyword: 'Kode Verifikasi Noriba', timeout: 100000 };
     if (typeof emailAnchorUid === 'number') {
       tokenFetchOptions.anchorUid = emailAnchorUid;
     }

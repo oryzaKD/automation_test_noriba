@@ -113,8 +113,12 @@ export class EmailHelper {
             if (body) {
                 const decodedBody = Buffer.from(body, 'base64').toString();
                 
-                // Common patterns for verification tokens
+                // Common patterns for verification tokens (EN + ID)
                 const patterns = [
+                    /Gunakan\s+kode\s+OTP[^\d]*?(\d{6})/i,
+                    /Instruksi\s+Reset\s+Password[\s\S]*?(\d{6})/i,
+                    /Reset\s+Password[\s\S]*?(\d{6})/i,
+                    /kode\s+OTP[^\d]*?(\d{6})/i,
                     /verification code[:\s]+(\d{6})/i,
                     /token[:\s]+(\d{6})/i,
                     /code[:\s]+(\d{6})/i,
@@ -137,6 +141,10 @@ export class EmailHelper {
                     if (part.body && part.body.data) {
                         const decodedPart = Buffer.from(part.body.data, 'base64').toString();
                         const patterns = [
+                            /Gunakan\s+kode\s+OTP[^\d]*?(\d{6})/i,
+                            /Instruksi\s+Reset\s+Password[\s\S]*?(\d{6})/i,
+                            /Reset\s+Password[\s\S]*?(\d{6})/i,
+                            /kode\s+OTP[^\d]*?(\d{6})/i,
                             /verification code[:\s]+(\d{6})/i,
                             /token[:\s]+(\d{6})/i,
                             /code[:\s]+(\d{6})/i,
