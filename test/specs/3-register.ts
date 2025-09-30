@@ -7,7 +7,6 @@ import { nextSequence } from '../helpers/counter';
 describe('Register application', () => {
   let page: Page;
   let emailHelper: EmailHelper | ImapEmailHelper;
-  let latestValidOtp: string | null = null;
 
   before(async () => {
     page = new Page();
