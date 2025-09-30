@@ -35,6 +35,7 @@ describe('My Login application', () => {
 
     } else {
       console.log('Noriba element is not visible!');
+      console.log('OKEEE');
     }
   });
 
