@@ -233,7 +233,6 @@ describe('Register application', () => {
     if (emailHelper instanceof ImapEmailHelper) {
       await emailHelper.disconnect();
     }
-    console.log('🧹 Cleanup completed');
   });
 })
 
