@@ -52,7 +52,7 @@ export const config: WebdriverIO.Config = {
     // and 30 processes will get spawned. The property handles how many capabilities
     // from the same test should run tests.
     //
-    maxInstances: 10,
+    maxInstances: 1,
     //
     // If you have trouble getting all important capabilities together, check out the
     // Sauce Labs platform configurator - a great tool to configure your capabilities:
@@ -61,10 +61,9 @@ export const config: WebdriverIO.Config = {
     capabilities: [{
         // capabilities for local Appium native app tests on an Android Emulator
         platformName: 'Android',
-        'appium:deviceName': 'emulator-5554', // Use the actual device ID
-        'appium:platformVersion': '10',
+        'appium:deviceName': 'Android Emulator',
         'appium:automationName': 'UiAutomator2',
-        'appium:appPackage': 'com.android.settings', // Use Android Settings app for testing
+        'appium:appPackage': 'com.android.settings',
         'appium:appActivity': '.Settings',
         'appium:newCommandTimeout': 300,
         'appium:autoGrantPermissions': true,

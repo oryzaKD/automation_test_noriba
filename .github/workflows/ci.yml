@@ -57,8 +57,11 @@ jobs:
           api-level: 30
           target: google_apis
           arch: arm64-v8a
-          profile: pixel
-          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -accel hvf
+          profile: pixel_6
+          emulator-boot-timeout: 900000
+          disable-animations: true
+          force-avd-creation: true
+          emulator-options: -no-window -wipe-data -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -accel hvf -camera-back none -camera-front none
           script: |
             npm i -g appium@^3.0.2
             appium driver install uiautomator2
