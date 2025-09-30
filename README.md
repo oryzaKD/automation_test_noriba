@@ -19,7 +19,7 @@ HOW TO RUNNING THE AUTOMATION TEST CODE WITH APPIUM (ANDROID):
    
    ```bash
    npx wdio run ./wdio.conf.js
-   npx wdio run ./wdio.conf.ts --spec ./test/specs/login.t (specific file)
+   npx wdio run ./wdio.conf.ts --spec ./test/specs/3-register.ts (specific file)
    npx wdio run ./wdio.conf.ts —spec (all the file inside spec)
    npm test -- --spec test/specs/3-register.ts (specific file)
    
