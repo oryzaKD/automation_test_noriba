@@ -1,0 +1,96 @@
+name: Nightly Full Test Suite
+
+on:
+  schedule:
+    # Runs every day at 2 AM UTC (9 AM WIB)
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  full-test-suite:
+    name: Full Regression Tests
+    runs-on: macos-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Install Appium
+        run: |
+          npm install -g appium@latest
+          appium driver install uiautomator2
+
+      - name: Setup environment variables
+        run: |
+          mkdir -p appium/config
+          echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" >> appium/config/email.env
+          echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> appium/config/email.env
+          echo "IMAP_HOST=${{ secrets.IMAP_HOST }}" >> appium/config/email.env
+          echo "IMAP_PORT=${{ secrets.IMAP_PORT }}" >> appium/config/email.env
+
+      - name: Run Cypress tests
+        run: npm run cypress:run
+        continue-on-error: true
+
+      - name: Start Appium Server
+        run: |
+          appium -p 4723 > appium.log 2>&1 &
+          echo "APPIUM_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for Appium Server
+        run: |
+          timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do sleep 1; done' || exit 1
+
+      - name: Run all Appium test specs
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: npm run wdio:appium
+        continue-on-error: true
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Test execution completed. Check artifacts for detailed results." >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload all test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-test-results
+          path: |
+            appium.log
+            appium/logs/**
+            appium/screenshots/**
+            appium/reports/**
+            cypress/screenshots/**
+            cypress/videos/**
+          if-no-files-found: ignore
+
+      - name: Send notification on failure
+        if: failure()
+        run: |
+          echo "Nightly tests failed. Please check the workflow run for details."
+          # Tambahkan notifikasi ke Slack/Teams/Email jika diperlukan
+

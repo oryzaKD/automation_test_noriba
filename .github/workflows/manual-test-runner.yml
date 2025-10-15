@@ -1,0 +1,223 @@
+name: Manual Test Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of test to run'
+        required: true
+        type: choice
+        options:
+          - appium-all
+          - appium-specific
+          - cypress-all
+          - cypress-specific
+      
+      test_spec:
+        description: 'Specific test file (if applicable, e.g., test/specs/3-register.ts)'
+        required: false
+        type: string
+      
+      browser:
+        description: 'Browser for Cypress tests'
+        required: false
+        type: choice
+        default: 'chrome'
+        options:
+          - chrome
+          - firefox
+          - edge
+      
+      api_level:
+        description: 'Android API Level for Appium'
+        required: false
+        type: choice
+        default: '30'
+        options:
+          - '29'
+          - '30'
+          - '31'
+          - '33'
+      
+      enable_video:
+        description: 'Enable video recording'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  run-appium-tests:
+    if: ${{ startsWith(github.event.inputs.test_type, 'appium') }}
+    name: Run Appium Tests
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+
+      - name: Install Appium
+        run: |
+          npm install -g appium@latest
+          appium driver install uiautomator2
+
+      - name: Setup environment variables
+        run: |
+          mkdir -p appium/config
+          echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" >> appium/config/email.env
+          echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> appium/config/email.env
+          echo "IMAP_HOST=${{ secrets.IMAP_HOST }}" >> appium/config/email.env
+          echo "IMAP_PORT=${{ secrets.IMAP_PORT }}" >> appium/config/email.env
+
+      - name: Start Appium Server
+        run: |
+          appium -p 4723 > appium.log 2>&1 &
+          echo "APPIUM_PID=$!" >> $GITHUB_ENV
+
+      - name: Wait for Appium Server
+        run: |
+          timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do sleep 1; done' || exit 1
+
+      - name: Run All Appium Tests
+        if: ${{ github.event.inputs.test_type == 'appium-all' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ github.event.inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: npm run wdio:appium
+
+      - name: Run Specific Appium Test
+        if: ${{ github.event.inputs.test_type == 'appium-specific' && github.event.inputs.test_spec != '' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ github.event.inputs.api_level }}
+          target: google_apis
+          arch: x86_64
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: npx wdio run ./appium/wdio.conf.ts --spec ./appium/${{ github.event.inputs.test_spec }}
+
+      - name: Upload Appium logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-appium-logs
+          path: |
+            appium.log
+            appium/logs/**
+          if-no-files-found: ignore
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-appium-screenshots
+          path: appium/screenshots/**
+          if-no-files-found: ignore
+
+  run-cypress-tests:
+    if: ${{ startsWith(github.event.inputs.test_type, 'cypress') }}
+    name: Run Cypress Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run All Cypress Tests
+        if: ${{ github.event.inputs.test_type == 'cypress-all' }}
+        uses: cypress-io/github-action@v6
+        with:
+          browser: ${{ github.event.inputs.browser }}
+          config-file: cypress/cypress.config.ts
+        env:
+          CYPRESS_VIDEO: ${{ github.event.inputs.enable_video }}
+
+      - name: Run Specific Cypress Test
+        if: ${{ github.event.inputs.test_type == 'cypress-specific' && github.event.inputs.test_spec != '' }}
+        uses: cypress-io/github-action@v6
+        with:
+          browser: ${{ github.event.inputs.browser }}
+          config-file: cypress/cypress.config.ts
+          spec: cypress/${{ github.event.inputs.test_spec }}
+        env:
+          CYPRESS_VIDEO: ${{ github.event.inputs.enable_video }}
+
+      - name: Upload Cypress screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-cypress-screenshots
+          path: cypress/screenshots
+          if-no-files-found: ignore
+
+      - name: Upload Cypress videos
+        if: ${{ github.event.inputs.enable_video == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-cypress-videos
+          path: cypress/videos
+          if-no-files-found: ignore
+
+  summary:
+    name: Test Summary
+    needs: [run-appium-tests, run-cypress-tests]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## 📊 Manual Test Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Type:** ${{ github.event.inputs.test_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ github.event.inputs.test_type }}" == appium* ]]; then
+            echo "**API Level:** ${{ github.event.inputs.api_level }}" >> $GITHUB_STEP_SUMMARY
+            if [ -n "${{ github.event.inputs.test_spec }}" ]; then
+              echo "**Spec:** ${{ github.event.inputs.test_spec }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          if [[ "${{ github.event.inputs.test_type }}" == cypress* ]]; then
+            echo "**Browser:** ${{ github.event.inputs.browser }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Video Recording:** ${{ github.event.inputs.enable_video }}" >> $GITHUB_STEP_SUMMARY
+            if [ -n "${{ github.event.inputs.test_spec }}" ]; then
+              echo "**Spec:** ${{ github.event.inputs.test_spec }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the artifacts section above for logs, screenshots, and videos." >> $GITHUB_STEP_SUMMARY
+
