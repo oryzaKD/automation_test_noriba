@@ -18,6 +18,9 @@ describe('My Login application', () => {
       console.log('Noriba element clicked!');
       await driver.pause(3000)
 
+      // Allow permission notification
+      await $('//android.widget.Button[@resource-id="com.android.permissioncontroller:id/permission_allow_button"]').click()
+
       //Click button masuk
       await $('//android.widget.Button[@content-desc="Buat Akun/Masuk"]').click()
       await driver.pause(3000)

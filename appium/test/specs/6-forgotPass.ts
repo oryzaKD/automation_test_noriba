@@ -30,6 +30,9 @@ describe('Register application', () => {
       await noribaElement.click();
       console.log('Noriba element clicked!');
 
+      // Allow permission notification
+      await $('//android.widget.Button[@resource-id="com.android.permissioncontroller:id/permission_allow_button"]').click()
+
       //Click button masuk
       await $('//android.widget.Button[@content-desc="Buat Akun/Masuk"]').click()
 
@@ -172,7 +175,7 @@ describe('Register application', () => {
 
   it('Berhasil melakukan Lupa Password', async function () {
     this.timeout(480000);
-    const testEmail = `odew.odew12+demo1@gmail.com`;
+    const testEmail = `	odew.odew12@gmail.com`;
 
     // Ambil anchor email sebelum mengirim OTP agar hanya membaca email terbaru
     let emailAnchorUid: number | undefined;

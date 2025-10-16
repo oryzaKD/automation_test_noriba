@@ -31,6 +31,9 @@ describe('Register application', () => {
       await noribaElement.click();
       console.log('Noriba element clicked!');
 
+      // Allow permission notification
+      await $('//android.widget.Button[@resource-id="com.android.permissioncontroller:id/permission_allow_button"]').click()
+
       //Click button masuk
       await $('//android.widget.Button[@content-desc="Buat Akun/Masuk"]').click()
 
@@ -326,6 +329,8 @@ describe('Register application', () => {
     await $('//android.widget.Button[@content-desc="Kirim"]').click();
     await driver.pause(5000);
   });
+
+  //KASIH VERIKASI NOMOR
 
   it('Aktifkan Notifikasi', async () => {
     await driver.pause(3000);

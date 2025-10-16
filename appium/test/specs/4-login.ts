@@ -18,6 +18,9 @@ describe('My Login application', () => {
       console.log('Noriba element clicked!');
       await driver.pause(3000)
 
+      // Allow permission notification
+      await $('//android.widget.Button[@resource-id="com.android.permissioncontroller:id/permission_allow_button"]').click()
+
       //Click button masuk
       await $('//android.widget.Button[@content-desc="Buat Akun/Masuk"]').click()
       await driver.pause(3000)
@@ -82,12 +85,12 @@ describe('My Login application', () => {
     await $('//android.widget.Button[@content-desc="Masuk"]').click()
     await driver.pause(3000)
 
-    const inputanKosong = await $('//android.view.View[@content-desc="Password terdiri dari paduan huruf dan angka minimal 8 digit"]');
+    const inputanKosong = await $('//android.view.View[@content-desc="No Hp dan Password yang Anda masukkan tidak ditemukan. Periksa dan coba kembali"]');
     await expect(inputanKosong).toBeDisplayed();
 
     // Verify the content-desc attribute contains the expected text
     const contentDesc = await inputanKosong.getAttribute('content-desc');
-    await expect(contentDesc).toBe("Password terdiri dari paduan huruf dan angka minimal 8 digit");
+    await expect(contentDesc).toBe("No Hp dan Password yang Anda masukkan tidak ditemukan. Periksa dan coba kembali");
   })
 
   it('Input password tidak sesuai dengan password akun', async () => {
@@ -136,7 +139,7 @@ describe('My Login application', () => {
     await $('//android.widget.FrameLayout[@resource-id="android:id/content"]/android.widget.FrameLayout/android.view.View/android.view.View/android.view.View/android.view.View/android.widget.EditText[1]').setValue(noHp);
 
     await $('//android.widget.Button[@content-desc="Masuk"]').click()
-    await driver.pause(3000)
+    await driver.pause(5000)
 
     //Izinkan notifikasi
     await $('//android.widget.Button[@content-desc="Izinkan"]').click()

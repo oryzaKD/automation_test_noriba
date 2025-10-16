@@ -1,10 +1,11 @@
 import * as path from 'path';
 import * as dotenv from 'dotenv';
+import type { Options, Capabilities } from '@wdio/types';
 
 // Load email env automatically for tests that use Gmail/IMAP helpers
 dotenv.config({ path: path.join(__dirname, 'config/email.env') });
 
-export const config: WebdriverIO.Config = {
+export const config: Options.Testrunner & Capabilities.WithRequestedTestrunnerCapabilities = {
     //
     // ====================
     // Runner Configuration

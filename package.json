@@ -5,12 +5,11 @@
   "main": "index.js",
   "scripts": {
     "test": "wdio wdio.conf.ts",
-    "wdio": "wdio run ./wdio.conf.ts",
-    "test:email": "wdio run ./wdio.conf.ts --spec test/specs/5-email-verification.ts",
-    "test:email-simple": "wdio run ./wdio.conf.ts --spec test/specs/6-simple-email-verification.ts",
-    "demo:email-flow": "wdio run ./wdio.conf.ts --spec test/specs/7-demo-email-flow.ts",
+    "wdio:appium": "wdio run ./appium/wdio.conf.ts",
     "setup:gmail": "node scripts/setup-gmail-oauth.js",
-    "test:email-connection": "node scripts/test-email-connection.js"
+    "test:email-connection": "node scripts/test-email-connection.js",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +24,7 @@
     "webdriverio": "^9.19.2"
   },
   "devDependencies": {
+    "@types/cypress": "^0.1.6",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.3.1",
     "@wdio/appium-service": "^9.19.2",
@@ -35,6 +35,7 @@
     "@wdio/visual-service": "^9.0.0",
     "appium": "^3.0.2",
     "appium-uiautomator2-driver": "^5.0.1",
+    "cypress": "^15.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }

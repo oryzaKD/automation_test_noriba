@@ -1,4 +1,5 @@
 import { browser } from '@wdio/globals'
+import type { ChainablePromiseElement } from 'webdriverio'
 
 /**
 * main page object containing all methods, selectors and functionality
@@ -62,6 +63,66 @@ export default class Page {
         await browser.pressKeyCode(82) // KEYCODE_MENU
         await browser.pause(1000) // Wait for transition
     }
+
+    /**
+    * Press the Android IME action "Next" (Gboard label: "Brkt")
+    * Uses mobile: performEditorAction with fallback keycodes
+    */
+    public async pressImeNext() {
+        try {
+            await browser.execute('mobile: performEditorAction', { action: 'next' })
+        } catch (_e) {
+            // Fallbacks: TAB (61) or ENTER (66)
+            try {
+                await browser.pressKeyCode(61) // KEYCODE_TAB
+            } catch (_e2) {
+                await browser.pressKeyCode(66) // KEYCODE_ENTER
+            }
+        }
+        await browser.pause(300)
+    }
+
+	/**
+	* Pick a date on Android Material date picker using an ISO string (YYYY-MM-DD)
+	* Works by navigating month/year then tapping the day, and pressing OK
+	*/
+	public async pickCalendarDateISO(iso: string) {
+		const target = new Date(iso)
+		if (Number.isNaN(target.getTime())) throw new Error(`Invalid date: ${iso}`)
+		const year = target.getFullYear()
+		const monthName = target.toLocaleString('en-US', { month: 'long' })
+		const day = target.getDate()
+
+		// Move to the desired month/year (try at most 24 clicks)
+		for (let i = 0; i < 24; i++) {
+			const headerSel = `//*[@content-desc and contains(@content-desc, '${monthName}') and contains(@content-desc, '${year}')]|//*[@text and contains(@text, '${monthName}') and contains(@text, '${year}')]`
+			if (await $(headerSel).isDisplayed()) break
+
+			// Try clicking "next month"; if not found, try "previous"
+			const nextSel = `//*[@content-desc='Next month' or @content-desc='Next' or @content-desc='Go to next month']`
+			const prevSel = `//*[@content-desc='Previous month' or @content-desc='Previous' or @content-desc='Go to previous month']`
+			if (await $(nextSel).isExisting()) {
+				await $(nextSel).click()
+			} else if (await $(prevSel).isExisting()) {
+				await $(prevSel).click()
+			} else {
+				// As a fallback, try the right-most ImageButton (click last)
+				const lastButton = await $('(//android.widget.ImageButton)[last()]')
+				if (await lastButton.isExisting()) await lastButton.click()
+			}
+			await browser.pause(150)
+		}
+
+		// Select the exact day cell
+		const daySel = `//*[@content-desc and contains(@content-desc, '${monthName}') and contains(@content-desc, ' ${day} ') and contains(@content-desc, '${year}')]|//*[@text='${day}']`
+		await $(daySel).click()
+
+		// Confirm
+		const okSel = `//*[@text='OK' or @content-desc='OK' or @resource-id='android:id/button1']`
+		if (await $(okSel).isExisting()) {
+			await $(okSel).click()
+		}
+	}
 
     /**
     * Press the Android back button multiple times
@@ -1084,7 +1145,6 @@ export default class Page {
         console.log(`=== Scroll to bottom until end (max ${maxScrolls} attempts) ===`)
         
         let noChangeCount = 0
-        let lastPageSource = ''
         
         for (let i = 0; i < maxScrolls; i++) {
             try {
@@ -1114,8 +1174,6 @@ export default class Page {
                     noChangeCount = 0
                     console.log('📄 Page content changed, continuing scroll...')
                 }
-                
-                lastPageSource = afterScroll
                 
             } catch (error) {
                 console.log(`❌ Scroll attempt ${i + 1} failed:`, error)
@@ -1175,7 +1233,50 @@ export default class Page {
         
         console.log(`Reliable scroll from (${startX}, ${startY}) to (${endX}, ${endY})`)
         
-        // Method 1: Try mobile: scroll command first (most reliable)
+        // Method 0: Try element-scoped scroll on common scrollable containers
+        try {
+            const didScroll = await this.tryElementScopedScrollDown()
+            if (didScroll) {
+                console.log('✅ Element-scoped scrollGesture successful')
+                return
+            }
+        } catch (elErr) {
+            console.log('Element-scoped scroll failed/none found:', elErr)
+        }
+
+        // Method 1: Try Android UiAutomator2 scrollGesture (Appium 2)
+        try {
+            const canScrollMore = await browser.execute('mobile: scrollGesture', {
+                left: 0,
+                top: Math.floor(height * 0.1),
+                width: width,
+                height: Math.floor(height * 0.8),
+                direction: 'down',
+                percent: 0.9
+            })
+            console.log(`✅ scrollGesture executed (canScrollMore=${canScrollMore})`)
+            return
+        } catch (gestureError) {
+            console.log('scrollGesture not available/failed, falling back:', gestureError)
+        }
+
+        // Method 1b: Try Android UiAutomator2 swipeGesture as fallback
+        try {
+            await browser.execute('mobile: swipeGesture', {
+                left: 0,
+                top: Math.floor(height * 0.1),
+                width: width,
+                height: Math.floor(height * 0.8),
+                direction: 'up',
+                percent: 0.9
+            })
+            console.log('✅ swipeGesture executed')
+            return
+        } catch (swipeErr) {
+            console.log('swipeGesture failed, falling back:', swipeErr)
+        }
+
+        // Method 2: Try mobile: scroll command (iOS or plugin-specific)
         try {
             await browser.execute('mobile: scroll', {
                 direction: 'down',
@@ -1187,7 +1288,7 @@ export default class Page {
             console.log('Mobile scroll failed, trying touch action:', mobileError)
         }
         
-        // Method 2: Try touchAction with correct WebDriverIO format
+        // Method 3: Try touchAction with correct WebDriverIO format
         try {
             await browser.touchAction([
                 { action: 'press', x: startX, y: startY },
@@ -1201,7 +1302,7 @@ export default class Page {
             console.log('Touch action failed:', touchError)
         }
         
-        // Method 3: Try key-based scrolling as last resort
+        // Method 4: Try key-based scrolling as last resort
         try {
             await browser.pressKeyCode(93) // KEYCODE_PAGE_DOWN
             console.log('✅ Key-based scroll successful')
@@ -1209,6 +1310,51 @@ export default class Page {
             console.log('Key-based scroll failed:', keyError)
             throw new Error('All scroll methods failed')
         }
+    }
+
+    /**
+     * Try to scroll within a specific scrollable container element
+     * Returns true if a scroll was performed
+     */
+    private async tryElementScopedScrollDown(): Promise<boolean> {
+        // Common Android scrollable containers
+        const containerSelectors = [
+            '//androidx.recyclerview.widget.RecyclerView',
+            '//android.widget.ScrollView',
+            '//android.widget.ListView',
+            '//androidx.core.widget.NestedScrollView',
+            // Fallback: any view with scrollbars enabled
+            "//android.view.View[@scrollable='true']"
+        ]
+        
+        for (const selector of containerSelectors) {
+            try {
+                const container = await $(selector)
+                if (!(await container.isExisting())) {
+                    continue
+                }
+                if (!(await container.isDisplayed())) {
+                    continue
+                }
+                
+                const loc = await container.getLocation()
+                const size = await container.getSize()
+                
+                await browser.execute('mobile: scrollGesture', {
+                    left: loc.x,
+                    top: loc.y,
+                    width: size.width,
+                    height: size.height,
+                    direction: 'down',
+                    percent: 0.9
+                })
+                return true
+            } catch (_e) {
+                // try next selector
+            }
+        }
+        
+        return false
     }
 
     /**
@@ -1263,5 +1409,216 @@ export default class Page {
         }
         
         console.log('=== Ultra safe scroll to bottom completed ===')
+    }
+
+    /**
+     * ANDROID: UiScrollable helpers to scroll element into view by various selectors
+     */
+    private escapeUiSelectorString(input: string): string {
+        return input.replace(/"/g, '\\"')
+    }
+
+    /**
+     * Scrolls until an element with exact text is in view and returns it
+     */
+    public androidScrollIntoViewByText(text: string): ChainablePromiseElement {
+        const safeText = this.escapeUiSelectorString(text)
+        const selector = `android=new UiScrollable(new UiSelector().scrollable(true))`
+            + `.setAsVerticalList()`
+            + `.scrollIntoView(new UiSelector().text("${safeText}"))`
+        return $(selector)
+    }
+
+    /**
+     * Scrolls until an element with partial text is in view and returns it
+     */
+    public androidScrollIntoViewByTextContains(textPart: string): ChainablePromiseElement {
+        const safeText = this.escapeUiSelectorString(textPart)
+        const selector = `android=new UiScrollable(new UiSelector().scrollable(true))`
+            + `.setAsVerticalList()`
+            + `.scrollIntoView(new UiSelector().textContains("${safeText}"))`
+        return $(selector)
+    }
+
+    /**
+     * Scrolls until an element with the given resourceId is in view and returns it
+     */
+    public androidScrollIntoViewByResourceId(resourceId: string): ChainablePromiseElement {
+        const safeId = this.escapeUiSelectorString(resourceId)
+        const selector = `android=new UiScrollable(new UiSelector().scrollable(true))`
+            + `.setAsVerticalList()`
+            + `.scrollIntoView(new UiSelector().resourceId("${safeId}"))`
+        return $(selector)
+    }
+
+    /**
+     * Scrolls until an element with content-desc (description) containing the text is in view and returns it
+     */
+    public androidScrollIntoViewByDescriptionContains(descPart: string): ChainablePromiseElement {
+        const safeText = this.escapeUiSelectorString(descPart)
+        const selector = `android=new UiScrollable(new UiSelector().scrollable(true))`
+            + `.setAsVerticalList()`
+            + `.scrollIntoView(new UiSelector().descriptionContains("${safeText}"))`
+        return $(selector)
+    }
+
+    /**
+     * Scrolls until an element with exact content-desc (description) is in view and returns it
+     */
+    public androidScrollIntoViewByDescription(description: string): ChainablePromiseElement {
+        const safeText = this.escapeUiSelectorString(description)
+        const selector = `android=new UiScrollable(new UiSelector().scrollable(true))`
+            + `.setAsVerticalList()`
+            + `.scrollIntoView(new UiSelector().description("${safeText}"))`
+        return $(selector)
+    }
+
+    /**
+     * Generic scroll and find element helper
+     * Can search by text, content-desc, or resource-id
+     * @param selector The text/description/id to search for
+     * @param type Type of selector: 'text', 'description', 'resourceId' (default: 'text')
+     */
+    public async scrollAndFindElement(
+        selector: string, 
+        type: 'text' | 'description' | 'resourceId' = 'text'
+    ) {
+        const safeSelector = this.escapeUiSelectorString(selector)
+        
+        let uiSelector: string
+        switch (type) {
+            case 'description':
+                uiSelector = `new UiSelector().descriptionContains("${safeSelector}")`
+                break
+            case 'resourceId':
+                uiSelector = `new UiSelector().resourceId("${safeSelector}")`
+                break
+            case 'text':
+            default:
+                uiSelector = `new UiSelector().text("${safeSelector}")`
+                break
+        }
+        
+        const element = await $(`android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(${uiSelector})`)
+        return element
+    }
+
+    /**
+     * Find element by XPath with content-desc attribute
+     * @param desc The content-desc value to search for
+     */
+    public async findElementByContentDesc(desc: string) {
+        const element = await $(`//android.view.View[@content-desc="${desc}"]`)
+        return element
+    }
+
+    /**
+     * Find element by XPath with text attribute
+     * @param text The text value to search for
+     */
+    public async findElementByText(text: string) {
+        const element = await $(`//android.widget.TextView[@text="${text}"]`)
+        return element
+    }
+
+    /**
+     * Find element by content-desc with multiple fallback strategies
+     * Tries UiScrollable, direct selector, and manual scroll
+     */
+    public async findElementByDescription(
+        description: string,
+        options: { 
+            caseSensitive?: boolean, 
+            exactMatch?: boolean,
+            timeout?: number 
+        } = {}
+    ) {
+        const { caseSensitive = true, exactMatch = true, timeout = 5000 } = options
+        
+        // Method 1: Try UiScrollable first (fastest if it works)
+        try {
+            if (exactMatch) {
+                const selector = `android=new UiScrollable(new UiSelector().scrollable(true)).setAsVerticalList().scrollIntoView(new UiSelector().description("${this.escapeUiSelectorString(description)}"))`
+                const el = $(selector)
+                await el.waitForDisplayed({ timeout })
+                return el
+            } else {
+                const el = this.androidScrollIntoViewByDescriptionContains(description)
+                await el.waitForDisplayed({ timeout })
+                return el
+            }
+        } catch (e1) {
+            // Method 2: Try direct XPath selector
+            try {
+                const element = $(`//android.view.View[@content-desc="${description}"]`)
+                await element.waitForDisplayed({ timeout })
+                return element
+            } catch (e2) {
+                // Method 3: Try case-insensitive if needed
+                if (caseSensitive) {
+                    try {
+                        const lowerDesc = description.toLowerCase()
+                        const element = $(`//android.view.View[@content-desc="${lowerDesc}"]`)
+                        await element.waitForDisplayed({ timeout })
+                        return element
+                    } catch (e3) {
+                        // Continue to Method 4
+                    }
+                }
+                
+                // Method 4: Manual scroll fallback
+                const selector = `//android.view.View[@content-desc="${description}"]`
+                return this.scrollToBottomFindElement(selector, 20)
+            }
+        }
+    }
+
+    /**
+     * Center a visible element roughly in the middle of the viewport using small scroll gestures
+     * Useful to avoid elements sticking to the very top/bottom edges before interacting
+     */
+    public async centerElementOnScreen(
+        el: any,
+        tolerancePx: number = 20,
+        maxTries: number = 8
+    ) {
+        const win = await browser.getWindowSize()
+        const gestureRegion = {
+            left: 10,
+            top: 10,
+            width: win.width - 20,
+            height: win.height - 20,
+        }
+        const targetCenterY = Math.round(gestureRegion.top + gestureRegion.height / 2)
+
+        for (let i = 0; i < maxTries; i++) {
+            // Ensure element is on screen first
+            if (!(await el.isDisplayed())) {
+                await browser.execute('mobile: scrollGesture', {
+                    ...gestureRegion,
+                    direction: 'down',
+                    percent: 0.6,
+                })
+                continue
+            }
+
+            // Use getLocation + getSize for broad driver compatibility
+            const loc = await el.getLocation()
+            const size = await el.getSize()
+            const elCenterY = loc.y + size.height / 2
+            const delta = elCenterY - targetCenterY
+
+            if (Math.abs(delta) <= tolerancePx) return
+
+            await browser.execute('mobile: scrollGesture', {
+                ...gestureRegion,
+                direction: delta > 0 ? 'down' : 'up',
+                percent: Math.min(0.6, Math.max(0.2, Math.abs(delta) / gestureRegion.height)),
+            })
+
+            await browser.pause(120)
+        }
+
+        throw new Error('Failed to center element on screen')
     }
 }
