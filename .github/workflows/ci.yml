@@ -1,15 +1,6 @@
 name: CI - WDIO Appium Android
 
 on:
-  push:
-    branches:
-      - master
-      - main
-    tags:
-      - 'v*'
-  pull_request:
-  schedule:
-    - cron: '0 18 * * *' # 01:00 WIB (UTC+7) ≈ 18:00 UTC previous day
   workflow_dispatch:
 
 jobs:
@@ -81,38 +72,4 @@ jobs:
           path: |
             appium.log
             ./wdio-*.log
-
-
-  deploy-staging:
-    name: Deploy Staging
-    needs: android-e2e
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    steps:
-      - name: Placeholder deploy to staging
-        run: |
-          echo "Staging deploy placeholder. Replace with real deploy steps (SSH/rsync/k8s)."
-          echo "Commit: $GITHUB_SHA"
-
-  deploy-production:
-    name: Deploy Production (Release)
-    needs: android-e2e
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - name: Download test artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: logs
-          path: release-artifacts
-
-      - name: Create GitHub Release and upload artifacts
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release-artifacts/**
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

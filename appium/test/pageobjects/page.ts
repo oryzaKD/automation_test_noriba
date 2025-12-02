@@ -1621,4 +1621,644 @@ export default class Page {
 
         throw new Error('Failed to center element on screen')
     }
+
+    /**
+     * Find EditText by index (0-based) with automatic scroll
+     * More stable than XPath as it doesn't depend on view hierarchy
+     * @param index Index of EditText (0 for first, 1 for second, etc.)
+     * @param scrollable Whether to scroll to find the element (default: true)
+     */
+    public async findEditTextByIndex(index: number, scrollable: boolean = true): Promise<ChainablePromiseElement> {
+        if (scrollable) {
+            const selector = `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().className("android.widget.EditText").instance(${index}))`
+            return $(selector)
+        } else {
+            const selector = `android=new UiSelector().className("android.widget.EditText").instance(${index})`
+            return $(selector)
+        }
+    }
+
+    /**
+     * Find element by className and index with automatic scroll
+     * @param className Android class name (e.g., "android.widget.Button", "android.widget.EditText")
+     * @param index Index of element (0-based)
+     * @param scrollable Whether to scroll to find the element (default: true)
+     */
+    public async findElementByClassAndIndex(
+        className: string, 
+        index: number, 
+        scrollable: boolean = true
+    ): Promise<ChainablePromiseElement> {
+        if (scrollable) {
+            const selector = `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().className("${className}").instance(${index}))`
+            return $(selector)
+        } else {
+            const selector = `android=new UiSelector().className("${className}").instance(${index})`
+            return $(selector)
+        }
+    }
+
+    /**
+     * Find element inside ScrollView by child index
+     * More reliable alternative to XPath like //android.widget.ScrollView/android.widget.EditText[1]
+     * @param childClassName Child element class name (e.g., "android.widget.EditText")
+     * @param childIndex Child index (0-based)
+     */
+    public async findScrollViewChild(childClassName: string, childIndex: number): Promise<ChainablePromiseElement> {
+        // First try with UiSelector
+        try {
+            const selector = `android=new UiSelector().className("android.widget.ScrollView").childSelector(new UiSelector().className("${childClassName}").instance(${childIndex}))`
+            const element = await $(selector)
+            if (await element.isDisplayed()) {
+                return element
+            }
+        } catch (e) {
+            console.log('UiSelector childSelector failed, trying alternative...')
+        }
+
+        // Fallback: Find all children and get by index
+        const selector = `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().className("${childClassName}").instance(${childIndex}))`
+        return $(selector)
+    }
+
+    /**
+     * Input value to EditText by index attribute from Appium Inspector
+     * Uses the actual index attribute value shown in Appium Inspector
+     * @param index Index attribute value from Appium Inspector (e.g., 5)
+     * @param value Value to input
+     * @param hideKeyboard Auto-hide keyboard (default: true)
+     * @param keyboardMethod Method to hide keyboard (default: 'back')
+     */
+    public async setEditTextByIndex(
+        index: number, 
+        value: string, 
+        hideKeyboard: boolean = true,
+        keyboardMethod: 'back' | 'native' | 'tap' | 'all' = 'back'
+    ) {
+        console.log(`📝 Setting value to EditText with index=${index}`)
+        
+        // Use XPath with index attribute directly from Appium Inspector
+        const xpath = `//android.widget.EditText[@index='${index}']`
+        console.log(`   XPath selector: ${xpath}`)
+        
+        const element = await $(xpath)
+        await element.waitForDisplayed({ timeout: 7000 })
+        await element.click()
+        await browser.pause(300)
+        await element.setValue(value)
+        await browser.pause(500)
+        
+        console.log(`✅ Value "${value}" set to EditText with index=${index}`)
+        
+        if (hideKeyboard) {
+            await this.hideKeyboard(keyboardMethod)
+        }
+    }
+
+    /**
+     * Get element using stored element reference (from element cache)
+     * This is useful when you want to reuse element that was already found
+     * @param cachedElement Previously found element
+     */
+    public async reuseElement(cachedElement: WebdriverIO.Element) {
+        try {
+            // Check if element is still valid
+            if (await cachedElement.isDisplayed()) {
+                return cachedElement
+            }
+        } catch (e) {
+            throw new Error('Cached element is no longer valid or displayed')
+        }
+        return cachedElement
+    }
+
+    /**
+     * Find EditText by looking for nearby label/anchor text
+     * More robust than index-based approach as it doesn't break when fields are added/removed
+     * @param labelText The label text near the input field
+     * @param position Position relative to label: 'after' (default) or 'before'
+     */
+    public async findEditTextByLabel(labelText: string, position: 'after' | 'before' = 'after'): Promise<ChainablePromiseElement> {
+        const safeLabel = this.escapeUiSelectorString(labelText)
+        
+        // Strategy 1: Find by following-sibling (most common pattern)
+        if (position === 'after') {
+            try {
+                const xpath = `//*[contains(@text, "${labelText}") or contains(@content-desc, "${labelText}")]/following-sibling::android.widget.EditText[1]`
+                const element = await $(xpath)
+                if (await element.isDisplayed()) {
+                    return element
+                }
+            } catch (e) {
+                console.log('Following-sibling strategy failed, trying alternative...')
+            }
+        }
+
+        // Strategy 2: Find by preceding-sibling
+        if (position === 'before') {
+            try {
+                const xpath = `//*[contains(@text, "${labelText}") or contains(@content-desc, "${labelText}")]/preceding-sibling::android.widget.EditText[1]`
+                const element = await $(xpath)
+                if (await element.isDisplayed()) {
+                    return element
+                }
+            } catch (e) {
+                console.log('Preceding-sibling strategy failed, trying alternative...')
+            }
+        }
+
+        // Strategy 3: UiAutomator - find label then find next EditText
+        try {
+            const selector = `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().textContains("${safeLabel}"));` +
+                            `new UiSelector().className("android.widget.EditText")`
+            return await $(selector)
+        } catch (e) {
+            console.log('UiAutomator label strategy failed, trying XPath...')
+        }
+
+        // Strategy 4: Fallback - find in parent hierarchy
+        const xpath = `//*[contains(@text, "${labelText}") or contains(@content-desc, "${labelText}")]/ancestor::android.view.View[1]//android.widget.EditText`
+        return await $(xpath)
+    }
+
+    /**
+     * Find EditText by placeholder/hint text
+     * Works if EditText has a hint attribute
+     * @param hintText The hint/placeholder text
+     * @param scrollable Whether to scroll to find element (default: true)
+     */
+    public async findEditTextByHint(hintText: string, scrollable: boolean = true): Promise<ChainablePromiseElement> {
+        const safeHint = this.escapeUiSelectorString(hintText)
+        
+        console.log(`🔍 Searching EditText by hint: "${hintText}"`)
+        
+        // ✅ Strategy 1: Try finding by content-desc (most reliable for Flutter/React Native apps)
+        // Many frameworks expose hint via content-desc
+        try {
+            console.log('  → Strategy 1: Trying content-desc...')
+            const xpath = scrollable 
+                ? `//android.widget.EditText[@content-desc="${hintText}"]`
+                : `//android.widget.EditText[@content-desc="${hintText}"]`
+            
+            const element = await $(xpath)
+            await element.waitForExist({ timeout: 3000 })
+            if (await element.isDisplayed()) {
+                console.log('  ✅ Found by content-desc (exact match)')
+                return element
+            }
+        } catch (e) {
+            console.log('  ❌ Content-desc exact match not found')
+        }
+
+        // ✅ Strategy 2: Try content-desc with contains
+        try {
+            console.log('  → Strategy 2: Trying content-desc contains...')
+            const xpath = `//android.widget.EditText[contains(@content-desc, "${hintText}")]`
+            const element = await $(xpath)
+            await element.waitForExist({ timeout: 3000 })
+            if (await element.isDisplayed()) {
+                console.log('  ✅ Found by content-desc (contains)')
+                return element
+            }
+        } catch (e) {
+            console.log('  ❌ Content-desc contains not found')
+        }
+
+        // ✅ Strategy 3: Try UiAutomator with content-desc
+        if (scrollable) {
+            try {
+                console.log('  → Strategy 3: Trying UiAutomator scrollable content-desc...')
+                const selector = `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().className("android.widget.EditText").descriptionContains("${safeHint}"))`
+                const element = await $(selector)
+                await element.waitForExist({ timeout: 3000 })
+                console.log('  ✅ Found by UiAutomator scrollable')
+                return element
+            } catch (e) {
+                console.log('  ❌ UiAutomator scrollable not found')
+            }
+        }
+
+        // ✅ Strategy 4: Try finding by text attribute (some apps show hint as initial text)
+        try {
+            console.log('  → Strategy 4: Trying text attribute...')
+            const xpath = `//android.widget.EditText[@text="${hintText}"]`
+            const element = await $(xpath)
+            await element.waitForExist({ timeout: 2000 })
+            if (await element.isDisplayed()) {
+                console.log('  ✅ Found by text attribute')
+                return element
+            }
+        } catch (e) {
+            console.log('  ❌ Text attribute not found')
+        }
+
+        // ✅ Strategy 5: Try UiAutomator with text
+        if (scrollable) {
+            try {
+                console.log('  → Strategy 5: Trying UiAutomator scrollable text...')
+                const selector = `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().className("android.widget.EditText").textContains("${safeHint}"))`
+                const element = await $(selector)
+                await element.waitForExist({ timeout: 3000 })
+                console.log('  ✅ Found by UiAutomator text')
+                return element
+            } catch (e) {
+                console.log('  ❌ UiAutomator text not found')
+            }
+        }
+
+        // ✅ Strategy 6: Manual scroll and search (last resort)
+        if (scrollable) {
+            console.log('  → Strategy 6: Manual scroll + search...')
+            for (let i = 0; i < 10; i++) {
+                try {
+                    // Try both content-desc and text
+                    const xpath = `//android.widget.EditText[@content-desc="${hintText}" or @text="${hintText}" or contains(@content-desc, "${hintText}")]`
+                    const element = await $(xpath)
+                    if (await element.isExisting() && await element.isDisplayed()) {
+                        console.log(`  ✅ Found after ${i} scrolls`)
+                        return element
+                    }
+                } catch (e) {
+                    // Not found, continue scrolling
+                }
+                
+                // Scroll down
+                await this.performReliableScroll()
+                await browser.pause(500)
+            }
+        }
+
+        console.log('  ❌ All strategies failed')
+        throw new Error(`EditText with hint "${hintText}" not found after trying all strategies`)
+    }
+
+    /**
+     * Input value to EditText by finding it with nearby label
+     * Most robust approach - doesn't depend on index or position
+     * @param labelText Label text near the input field
+     * @param value Value to input
+     * @param position Position of field relative to label (default: 'after')
+     * @param hideKeyboard Auto-hide keyboard (default: true)
+     * @param keyboardMethod Method to hide keyboard (default: 'back')
+     */
+    public async setEditTextByLabel(
+        labelText: string, 
+        value: string, 
+        position: 'after' | 'before' = 'after',
+        hideKeyboard: boolean = true,
+        keyboardMethod: 'back' | 'native' | 'tap' | 'all' = 'back'
+    ) {
+        const element = await this.findEditTextByLabel(labelText, position)
+        await element.waitForDisplayed({ timeout: 5000 })
+        await element.click()
+        await element.setValue(value)
+        await browser.pause(500)
+        
+        if (hideKeyboard) {
+            await this.hideKeyboard(keyboardMethod)
+        }
+    }
+
+    /**
+     * Find EditText with multiple fallback strategies
+     * Tries multiple approaches to find the field, from most stable to least stable
+     * 
+     * 🎯 Priority Order (most to least reliable):
+     * 1. Resource-ID (if app provides it)
+     * 2. Hint/Placeholder (unique identifier from Appium Inspector)
+     * 3. Content-Desc (if different from hint)
+     * 4. Label (nearby anchor text)
+     * 5. Custom XPath (explicit selector)
+     * 6. Index (LEAST RELIABLE - avoid if possible!)
+     * 
+     * @param options Search options with multiple fallback strategies
+     */
+    public async findEditTextRobust(options: {
+        resourceId?: string,
+        contentDesc?: string,
+        label?: string,
+        hint?: string,
+        index?: number,
+        xpath?: string
+    }): Promise<ChainablePromiseElement> {
+        const { resourceId, contentDesc, label, hint, index, xpath } = options
+
+        console.log('🔍 findEditTextRobust called with options:', JSON.stringify(options, null, 2))
+
+        // Strategy 1: Resource-ID (most stable if available)
+        if (resourceId) {
+            try {
+                console.log('→ Strategy 1: Trying resource-id...')
+                const element = await this.scrollAndFindElement(resourceId, 'resourceId')
+                if (await element.isDisplayed()) {
+                    console.log('✅ Found by resource-id')
+                    return element
+                }
+            } catch (e) {
+                console.log('❌ Resource-ID not found, trying next strategy...')
+            }
+        }
+
+        // Strategy 2: By Hint/Placeholder (PRIORITIZED - unique from Appium Inspector)
+        // ⭐ Hint is MORE RELIABLE than index because it's semantic, not positional
+        if (hint) {
+            try {
+                console.log('→ Strategy 2: Trying hint (PRIORITIZED)...')
+                const element = await this.findEditTextByHint(hint)
+                if (await element.isDisplayed()) {
+                    console.log('✅ Found by hint - MOST RELIABLE METHOD!')
+                    return element
+                }
+            } catch (e) {
+                console.log('❌ Hint not found, trying next strategy...')
+            }
+        }
+
+        // Strategy 3: Content-Desc (if different from hint)
+        if (contentDesc && contentDesc !== hint) {
+            try {
+                console.log('→ Strategy 3: Trying content-desc...')
+                const element = await this.scrollAndFindElement(contentDesc, 'description')
+                if (await element.isDisplayed()) {
+                    console.log('✅ Found by content-desc')
+                    return element
+                }
+            } catch (e) {
+                console.log('❌ Content-desc not found, trying next strategy...')
+            }
+        }
+
+        // Strategy 4: By Label (anchor element)
+        if (label) {
+            try {
+                console.log('→ Strategy 4: Trying label...')
+                const element = await this.findEditTextByLabel(label)
+                if (await element.isDisplayed()) {
+                    console.log('✅ Found by label')
+                    return element
+                }
+            } catch (e) {
+                console.log('❌ Label not found, trying next strategy...')
+            }
+        }
+
+        // Strategy 5: Custom XPath (explicit selector)
+        if (xpath) {
+            try {
+                console.log('→ Strategy 5: Trying XPath...')
+                const element = await $(xpath)
+                if (await element.isDisplayed()) {
+                    console.log('✅ Found by XPath')
+                    return element
+                }
+            } catch (e) {
+                console.log('❌ XPath not found, trying next strategy...')
+            }
+        }
+
+        // Strategy 6: By Index (LEAST RELIABLE - only as last resort)
+        // ⚠️ WARNING: Index-based selection is fragile and can break when UI changes!
+        if (index !== undefined) {
+            console.log(`⚠️  WARNING: Falling back to index ${index} - THIS IS UNRELIABLE!`)
+            console.log('    Consider using hint, label, or content-desc instead.')
+            try {
+                const element = await this.findEditTextByIndex(index)
+                if (await element.isDisplayed()) {
+                    console.log(`⚠️  Found by index ${index} (FRAGILE - may break on UI changes)`)
+                    return element
+                }
+            } catch (e) {
+                console.log('❌ Index not found')
+            }
+        }
+
+        // All strategies failed
+        const availableStrategies = Object.keys(options).filter(k => options[k as keyof typeof options] !== undefined)
+        throw new Error(`Element not found with any strategy. Tried: ${availableStrategies.join(', ')}`)
+    }
+
+    /**
+     * Hide Android keyboard using multiple methods
+     * Tries different approaches to ensure keyboard is hidden
+     * @param method Method to hide keyboard: 'back' (default), 'native', 'tap', 'all'
+     */
+    public async hideKeyboard(method: 'back' | 'native' | 'tap' | 'all' = 'back') {
+        try {
+            if (method === 'native' || method === 'all') {
+                // Method 1: Native Appium hideKeyboard
+                await driver.hideKeyboard()
+                console.log('✅ Keyboard hidden using native method')
+                if (method !== 'all') return
+            }
+        } catch (e) {
+            console.log('Native hideKeyboard failed, trying alternative...')
+        }
+
+        try {
+            if (method === 'back' || method === 'all') {
+                // Method 2: Press back button
+                await this.pressBackButtonMultiple(1)
+                console.log('✅ Keyboard hidden using back button')
+                if (method !== 'all') return
+            }
+        } catch (e) {
+            console.log('Back button failed, trying alternative...')
+        }
+
+        try {
+            if (method === 'tap' || method === 'all') {
+                // Method 3: Tap outside keyboard area
+                const { width, height } = await driver.getWindowSize()
+                await driver.touchPerform([{
+                    action: 'tap',
+                    options: { x: Math.floor(width / 2), y: Math.floor(height * 0.1) }
+                }])
+                console.log('✅ Keyboard hidden using tap outside')
+            }
+        } catch (e) {
+            console.log('Tap outside failed')
+        }
+    }
+
+    /**
+     * Input value to EditText with multiple fallback strategies and auto-hide keyboard
+     * @param value Value to input
+     * @param options Search options with multiple fallback strategies
+     */
+    public async setEditTextRobust(value: string, options: {
+        resourceId?: string,
+        contentDesc?: string,
+        label?: string,
+        hint?: string,
+        index?: number,
+        xpath?: string,
+        hideKeyboard?: boolean,           // Auto-hide keyboard (default: true)
+        keyboardMethod?: 'back' | 'native' | 'tap' | 'all'  // Method to hide keyboard
+    }) {
+        const { hideKeyboard = true, keyboardMethod = 'back', ...searchOptions } = options
+        
+        const element = await this.findEditTextRobust(searchOptions)
+        await element.waitForDisplayed({ timeout: 5000 })
+        await element.click()
+        await element.setValue(value)
+        await browser.pause(500)
+        
+        // Auto-hide keyboard if enabled
+        if (hideKeyboard) {
+            await this.hideKeyboard(keyboardMethod)
+        }
+    }
+
+    /**
+     * ⭐ STRICT HINT-BASED METHOD - NO INDEX FALLBACK
+     * 
+     * Find EditText ONLY by hint attribute (no index fallback)
+     * Use this when you want to ensure your test is maintainable and won't break
+     * from UI position changes.
+     * 
+     * ✅ Benefits:
+     * - Semantic identification (based on meaning, not position)
+     * - Resistant to UI changes (adding/removing fields won't break tests)
+     * - Self-documenting (hint text shows what field you're targeting)
+     * 
+     * ⚠️ Requirement:
+     * - Element MUST have hint/content-desc attribute in Appium Inspector
+     * - Will throw error if not found (no silent fallback to unreliable methods)
+     * 
+     * @param hintText Exact hint text from Appium Inspector
+     * @param scrollable Whether to scroll while searching (default: true)
+     * @returns Promise<ChainablePromiseElement>
+     * @throws Error if element not found by hint
+     * 
+     * @example
+     * // Find field by hint "Jumlah Anak"
+     * const field = await page.findEditTextByHintStrict("Jumlah Anak")
+     * await field.setValue("2")
+     */
+    public async findEditTextByHintStrict(hintText: string, scrollable: boolean = true): Promise<ChainablePromiseElement> {
+        console.log(`🔒 STRICT MODE: Finding EditText by hint ONLY: "${hintText}"`)
+        console.log('    No index fallback - will fail if hint not found')
+        
+        try {
+            const element = await this.findEditTextByHint(hintText, scrollable)
+            console.log(`✅ SUCCESS: Found element by hint "${hintText}"`)
+            return element
+        } catch (error) {
+            console.error(`❌ STRICT MODE FAILED: Element with hint "${hintText}" not found`)
+            console.error('    💡 Tips to fix:')
+            console.error('       1. Verify hint text in Appium Inspector is exactly: ' + hintText)
+            console.error('       2. Check if hint is exposed as content-desc or text attribute')
+            console.error('       3. Try using findEditTextByHintPartial() for partial matches')
+            throw new Error(`[STRICT MODE] EditText with hint "${hintText}" not found. No fallback to index allowed.`)
+        }
+    }
+
+    /**
+     * ⭐ STRICT HINT-BASED METHOD WITH PARTIAL MATCH
+     * 
+     * Find EditText by partial hint text (contains) - NO INDEX FALLBACK
+     * Useful when hint text is long or has dynamic parts
+     * 
+     * @param hintPartial Partial hint text to search for
+     * @param scrollable Whether to scroll while searching (default: true)
+     * @returns Promise<ChainablePromiseElement>
+     * @throws Error if element not found
+     * 
+     * @example
+     * // Find field containing "Jumlah" in hint
+     * const field = await page.findEditTextByHintPartial("Jumlah")
+     */
+    public async findEditTextByHintPartial(hintPartial: string, scrollable: boolean = true): Promise<ChainablePromiseElement> {
+        console.log(`🔍 Finding EditText by partial hint: "${hintPartial}"`)
+        
+        // Try content-desc contains
+        try {
+            const xpath = `//android.widget.EditText[contains(@content-desc, "${hintPartial}")]`
+            const element = await $(xpath)
+            await element.waitForExist({ timeout: 3000 })
+            if (await element.isDisplayed()) {
+                console.log(`✅ Found by content-desc contains "${hintPartial}"`)
+                return element
+            }
+        } catch (e) {
+            console.log('❌ Content-desc partial match not found')
+        }
+
+        // Try text contains
+        try {
+            const xpath = `//android.widget.EditText[contains(@text, "${hintPartial}")]`
+            const element = await $(xpath)
+            await element.waitForExist({ timeout: 3000 })
+            if (await element.isDisplayed()) {
+                console.log(`✅ Found by text contains "${hintPartial}"`)
+                return element
+            }
+        } catch (e) {
+            console.log('❌ Text partial match not found')
+        }
+
+        // Try UiAutomator scrollable if requested
+        if (scrollable) {
+            try {
+                const safeHint = this.escapeUiSelectorString(hintPartial)
+                const selector = `android=new UiScrollable(new UiSelector().scrollable(true)).scrollIntoView(new UiSelector().className("android.widget.EditText").descriptionContains("${safeHint}"))`
+                const element = await $(selector)
+                await element.waitForExist({ timeout: 3000 })
+                console.log(`✅ Found by UiAutomator scrollable`)
+                return element
+            } catch (e) {
+                console.log('❌ UiAutomator scrollable not found')
+            }
+        }
+
+        throw new Error(`EditText with partial hint "${hintPartial}" not found`)
+    }
+
+    /**
+     * ⭐ SET VALUE USING HINT ONLY - MOST MAINTAINABLE METHOD
+     * 
+     * Input value to EditText using ONLY hint attribute (no index)
+     * This is the RECOMMENDED method for maintainable, robust tests
+     * 
+     * @param hintText Exact hint text from Appium Inspector  
+     * @param value Value to input
+     * @param options Additional options
+     * 
+     * @example
+     * // Recommended usage - semantic and maintainable
+     * await page.setEditTextByHintStrict("Jumlah Anak", "2")
+     * 
+     * // With options
+     * await page.setEditTextByHintStrict("Email", "test@example.com", {
+     *   scrollable: true,
+     *   hideKeyboard: true,
+     *   keyboardMethod: 'back'
+     * })
+     */
+    public async setEditTextByHintStrict(
+        hintText: string,
+        value: string,
+        options: {
+            scrollable?: boolean,
+            hideKeyboard?: boolean,
+            keyboardMethod?: 'back' | 'native' | 'tap' | 'all'
+        } = {}
+    ) {
+        const { scrollable = true, hideKeyboard = true, keyboardMethod = 'back' } = options
+        
+        console.log(`📝 Setting value "${value}" to field with hint "${hintText}"`)
+        
+        const element = await this.findEditTextByHintStrict(hintText, scrollable)
+        await element.waitForDisplayed({ timeout: 5000 })
+        await element.click()
+        await browser.pause(300)
+        await element.setValue(value)
+        await browser.pause(500)
+        
+        if (hideKeyboard) {
+            await this.hideKeyboard(keyboardMethod)
+        }
+        
+        console.log(`✅ Successfully set value to field with hint "${hintText}"`)
+    }
 }

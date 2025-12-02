@@ -1,0 +1,66 @@
+// Dedicated pipeline for Cypress tests only
+pipeline {
+    agent any
+    
+    parameters {
+        choice(
+            name: 'BROWSER',
+            choices: ['chrome', 'firefox', 'edge'],
+            description: 'Browser to run tests'
+        )
+        booleanParam(
+            name: 'ENABLE_VIDEO',
+            defaultValue: true,
+            description: 'Enable video recording'
+        )
+        string(
+            name: 'TEST_SPEC',
+            defaultValue: '',
+            description: 'Specific test file (e.g., e2e/example.cy.ts) - leave empty to run all'
+        )
+    }
+    
+    environment {
+        NODE_VERSION = '20'
+        CYPRESS_VIDEO = "${params.ENABLE_VIDEO}"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Setup') {
+            steps {
+                sh '''
+                    node --version
+                    npm ci
+                '''
+            }
+        }
+        
+        stage('Run Cypress Tests') {
+            steps {
+                script {
+                    def specArg = params.TEST_SPEC ? "--spec cypress/${params.TEST_SPEC}" : "--spec 'cypress/e2e/**/*.cy.ts'"
+                    
+                    sh """
+                        npx cypress run \
+                            --browser ${params.BROWSER} \
+                            --config-file cypress/cypress.config.ts \
+                            ${specArg}
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            archiveArtifacts artifacts: 'cypress/screenshots/**,cypress/videos/**,cypress/results/**', allowEmptyArchive: true
+        }
+    }
+}
+

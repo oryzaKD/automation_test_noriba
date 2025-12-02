@@ -1,0 +1,113 @@
+// Dedicated pipeline for Appium Android tests only
+pipeline {
+    agent {
+        label 'macos' // Use macOS agent for Android emulator
+    }
+    
+    parameters {
+        choice(
+            name: 'ANDROID_API_LEVEL',
+            choices: ['30', '29', '31', '33'],
+            description: 'Android API Level'
+        )
+        string(
+            name: 'TEST_SPEC',
+            defaultValue: '',
+            description: 'Specific test file (e.g., test/specs/3-register.ts) - leave empty to run all'
+        )
+    }
+    
+    environment {
+        NODE_VERSION = '20'
+        APPIUM_VERSION = 'latest'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Setup') {
+            steps {
+                sh '''
+                    node --version
+                    npm ci
+                    npm install -g appium@latest
+                    appium driver install uiautomator2
+                '''
+            }
+        }
+        
+        stage('Setup Email Config') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'EMAIL_USER', variable: 'EMAIL_USER'),
+                    string(credentialsId: 'EMAIL_PASS', variable: 'EMAIL_PASS'),
+                    string(credentialsId: 'IMAP_HOST', variable: 'IMAP_HOST'),
+                    string(credentialsId: 'IMAP_PORT', variable: 'IMAP_PORT')
+                ]) {
+                    sh '''
+                        mkdir -p appium/config
+                        cat > appium/config/email.env << EOF
+EMAIL_USER=${EMAIL_USER}
+EMAIL_PASS=${EMAIL_PASS}
+IMAP_HOST=${IMAP_HOST}
+IMAP_PORT=${IMAP_PORT}
+EOF
+                    '''
+                }
+            }
+        }
+        
+        stage('Run Appium Tests') {
+            steps {
+                script {
+                    sh """
+                        # Create AVD
+                        avdmanager create avd -n test_avd_${params.ANDROID_API_LEVEL} \
+                            -k "system-images;android-${params.ANDROID_API_LEVEL};google_apis;x86_64" \
+                            --force || true
+                        
+                        # Start emulator
+                        \$ANDROID_HOME/emulator/emulator -avd test_avd_${params.ANDROID_API_LEVEL} \
+                            -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect \
+                            -camera-back none > emulator.log 2>&1 &
+                        
+                        # Wait for boot
+                        adb wait-for-device shell 'while [[ -z \$(getprop sys.boot_completed) ]]; do sleep 1; done'
+                        sleep 10
+                        adb devices -l
+                        
+                        # Start Appium
+                        appium -p 4723 > appium.log 2>&1 &
+                        echo \$! > appium.pid
+                        
+                        timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do sleep 2; done'
+                    """
+                    
+                    try {
+                        if (params.TEST_SPEC) {
+                            sh "npx wdio run ./appium/wdio.conf.ts --spec ./appium/${params.TEST_SPEC}"
+                        } else {
+                            sh 'npm run wdio:appium'
+                        }
+                    } finally {
+                        sh '''
+                            kill $(cat appium.pid) || true
+                            adb emu kill || true
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            archiveArtifacts artifacts: 'appium.log,emulator.log,appium/logs/**,appium/screenshots/**,appium/reports/**', allowEmptyArchive: true
+        }
+    }
+}
+

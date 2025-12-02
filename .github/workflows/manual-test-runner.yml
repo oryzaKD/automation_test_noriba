@@ -84,15 +84,6 @@ jobs:
           echo "IMAP_HOST=${{ secrets.IMAP_HOST }}" >> appium/config/email.env
           echo "IMAP_PORT=${{ secrets.IMAP_PORT }}" >> appium/config/email.env
 
-      - name: Start Appium Server
-        run: |
-          appium -p 4723 > appium.log 2>&1 &
-          echo "APPIUM_PID=$!" >> $GITHUB_ENV
-
-      - name: Wait for Appium Server
-        run: |
-          timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do sleep 1; done' || exit 1
-
       - name: Run All Appium Tests
         if: ${{ github.event.inputs.test_type == 'appium-all' }}
         uses: reactivecircus/android-emulator-runner@v2
@@ -102,7 +93,36 @@ jobs:
           arch: x86_64
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
-          script: npm run wdio:appium
+          script: |
+            echo "=== Waiting for emulator to fully boot ==="
+            adb wait-for-device
+            sleep 10
+            
+            echo "=== Verifying ADB devices ==="
+            adb devices -l
+            
+            echo "=== Getting device UDID ==="
+            DEVICE_UDID=$(adb devices | grep -w "device" | awk '{print $1}' | head -n 1)
+            echo "Device UDID: $DEVICE_UDID"
+            export DEVICE_UDID
+            
+            echo "=== Checking if device is ready ==="
+            adb shell getprop sys.boot_completed
+            
+            echo "=== Starting Appium Server ==="
+            appium -p 4723 > appium.log 2>&1 &
+            APPIUM_PID=$!
+            echo "Appium PID: $APPIUM_PID"
+            
+            echo "=== Waiting for Appium Server ==="
+            timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do echo "Waiting for Appium..."; sleep 2; done' || exit 1
+            echo "Appium server is ready"
+            
+            echo "=== Running All WDIO Tests ==="
+            npm run wdio:appium
+            
+            echo "=== Stopping Appium Server ==="
+            kill $APPIUM_PID || true
 
       - name: Run Specific Appium Test
         if: ${{ github.event.inputs.test_type == 'appium-specific' && github.event.inputs.test_spec != '' }}
@@ -113,7 +133,36 @@ jobs:
           arch: x86_64
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
-          script: npx wdio run ./appium/wdio.conf.ts --spec ./appium/${{ github.event.inputs.test_spec }}
+          script: |
+            echo "=== Waiting for emulator to fully boot ==="
+            adb wait-for-device
+            sleep 10
+            
+            echo "=== Verifying ADB devices ==="
+            adb devices -l
+            
+            echo "=== Getting device UDID ==="
+            DEVICE_UDID=$(adb devices | grep -w "device" | awk '{print $1}' | head -n 1)
+            echo "Device UDID: $DEVICE_UDID"
+            export DEVICE_UDID
+            
+            echo "=== Checking if device is ready ==="
+            adb shell getprop sys.boot_completed
+            
+            echo "=== Starting Appium Server ==="
+            appium -p 4723 > appium.log 2>&1 &
+            APPIUM_PID=$!
+            echo "Appium PID: $APPIUM_PID"
+            
+            echo "=== Waiting for Appium Server ==="
+            timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do echo "Waiting for Appium..."; sleep 2; done' || exit 1
+            echo "Appium server is ready"
+            
+            echo "=== Running Specific WDIO Test ==="
+            npx wdio run ./appium/wdio.conf.ts --spec ./appium/${{ github.event.inputs.test_spec }}
+            
+            echo "=== Stopping Appium Server ==="
+            kill $APPIUM_PID || true
 
       - name: Upload Appium logs
         if: always()

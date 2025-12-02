@@ -10,7 +10,7 @@ describe('Request Product', () => {
 
   it("login App Noriba", async () => {
     const noribaElement = await $('//android.widget.TextView[@content-desc="Noriba"]');
-    const noHp = "082339582790";
+    const noHp = "088905450134";
     const password = "Test123!";
 
     if (await noribaElement.isDisplayed()) {
@@ -37,7 +37,7 @@ describe('Request Product', () => {
       await driver.pause(3000)
       const buttonIzinkan = await $('//android.widget.Button[@content-desc="Izinkan"]');
       await buttonIzinkan.click()
-      console.log(buttonIzinkan);
+      await driver.pause(3000)
       // Button Izinkan tertutup navigasi
       const btn = await $('//android.widget.Button[@content-desc="Izinkan"]');
       await btn.waitForDisplayed({ timeout: 10000 });

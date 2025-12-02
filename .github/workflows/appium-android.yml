@@ -1,10 +1,6 @@
 name: Appium Android Tests
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
   workflow_dispatch:
     inputs:
       api-level:
@@ -92,17 +88,7 @@ jobs:
           echo "IMAP_HOST=${{ secrets.IMAP_HOST }}" >> appium/config/email.env
           echo "IMAP_PORT=${{ secrets.IMAP_PORT }}" >> appium/config/email.env
 
-      - name: Start Appium Server
-        run: |
-          appium -p 4723 > appium.log 2>&1 &
-          echo "APPIUM_PID=$!" >> $GITHUB_ENV
-
-      - name: Wait for Appium Server
-        run: |
-          timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do sleep 1; done' || exit 1
-          echo "Appium server is ready"
-
-      - name: Run Appium Tests
+      - name: Run Appium Tests with Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
@@ -112,8 +98,35 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            adb devices
+            echo "=== Waiting for emulator to fully boot ==="
+            adb wait-for-device
+            sleep 10
+            
+            echo "=== Verifying ADB devices ==="
+            adb devices -l
+            
+            echo "=== Getting device UDID ==="
+            DEVICE_UDID=$(adb devices | grep -w "device" | awk '{print $1}' | head -n 1)
+            echo "Device UDID: $DEVICE_UDID"
+            export DEVICE_UDID
+            
+            echo "=== Checking if device is ready ==="
+            adb shell getprop sys.boot_completed
+            
+            echo "=== Starting Appium Server ==="
+            appium -p 4723 > appium.log 2>&1 &
+            APPIUM_PID=$!
+            echo "Appium PID: $APPIUM_PID"
+            
+            echo "=== Waiting for Appium Server ==="
+            timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do echo "Waiting for Appium..."; sleep 2; done' || exit 1
+            echo "Appium server is ready"
+            
+            echo "=== Running WDIO Tests ==="
             npm run wdio:appium || true
+            
+            echo "=== Stopping Appium Server ==="
+            kill $APPIUM_PID || true
 
       - name: Upload Appium logs
         if: always()
@@ -140,11 +153,3 @@ jobs:
           name: appium-reports-api-${{ matrix.api-level }}
           path: appium/reports/**
           if-no-files-found: ignore
-
-      - name: Stop Appium Server
-        if: always()
-        run: |
-          if [ ! -z "$APPIUM_PID" ]; then
-            kill $APPIUM_PID || true
-          fi
-

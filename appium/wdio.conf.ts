@@ -70,6 +70,8 @@ export const config: Options.Testrunner & Capabilities.WithRequestedTestrunnerCa
         'appium:autoGrantPermissions': true,
         'appium:noReset': true,
         'appium:fullReset': false,
+        // Use UDID from environment if available (useful in CI/CD)
+        ...(process.env.DEVICE_UDID && { 'appium:udid': process.env.DEVICE_UDID }),
     }],
 
     //
