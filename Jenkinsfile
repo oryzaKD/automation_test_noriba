@@ -34,9 +34,6 @@ pipeline {
         NODE_VERSION = '20.x'
         JAVA_VERSION = '11'
         APPIUM_VERSION = 'latest'
-        
-        // Add Node.js to PATH (for macOS with Homebrew or nvm)
-        PATH = "/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
     }
     
     stages {
@@ -65,6 +62,8 @@ pipeline {
             steps {
                 echo "Setting up Node.js ${NODE_VERSION}..."
                 sh '''
+                    export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                    echo "Node path: $(which node)"
                     node --version
                     npm --version
                 '''
@@ -74,7 +73,10 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 echo "Installing npm dependencies..."
-                sh 'npm ci'
+                sh '''
+                    export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                    npm ci
+                '''
             }
         }
         
@@ -88,25 +90,37 @@ pipeline {
                 stage('TypeScript Check - Appium') {
                     steps {
                         echo "Running TypeScript compilation check for Appium..."
-                        sh 'npx tsc --noEmit -p appium/tsconfig.json'
+                        sh '''
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                            npx tsc --noEmit -p appium/tsconfig.json
+                        '''
                     }
                 }
                 stage('TypeScript Check - Cypress') {
                     steps {
                         echo "Running TypeScript compilation check for Cypress..."
-                        sh 'npx tsc --noEmit -p cypress/tsconfig.json'
+                        sh '''
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                            npx tsc --noEmit -p cypress/tsconfig.json
+                        '''
                     }
                 }
                 stage('TypeScript Check - Test Specs') {
                     steps {
                         echo "Running TypeScript check for test specs..."
-                        sh 'npx tsc --noEmit -p appium/test/tsconfig.json'
+                        sh '''
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                            npx tsc --noEmit -p appium/test/tsconfig.json
+                        '''
                     }
                 }
                 stage('Dependency Audit') {
                     steps {
                         echo "Running npm audit..."
-                        sh 'npm audit --audit-level=moderate || true'
+                        sh '''
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                            npm audit --audit-level=moderate || true
+                        '''
                     }
                 }
             }
@@ -121,6 +135,7 @@ pipeline {
             steps {
                 echo "Running Cypress tests on ${params.CYPRESS_BROWSER}..."
                 sh """
+                    export PATH="/usr/local/bin:/opt/homebrew/bin:\$PATH"
                     npx cypress run --browser ${params.CYPRESS_BROWSER} \
                         --config-file cypress/cypress.config.ts \
                         --spec 'cypress/e2e/**/*.cy.ts'
@@ -178,6 +193,7 @@ EOF
                     
                     // Install and setup Appium
                     sh """
+                        export PATH="/usr/local/bin:/opt/homebrew/bin:\$PATH"
                         npm install -g appium@${APPIUM_VERSION}
                         appium driver install uiautomator2
                         appium --version
@@ -234,7 +250,10 @@ EOF
                         
                         // Run tests
                         try {
-                            sh 'npm run wdio:appium'
+                            sh '''
+                                export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                                npm run wdio:appium
+                            '''
                         } finally {
                             // Cleanup
                             sh """
