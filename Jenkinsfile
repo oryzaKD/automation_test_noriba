@@ -1,8 +1,9 @@
 pipeline {
     agent any
     
+    // Use NodeJS tool configured in Jenkins
     tools {
-        nodejs 'Node-20'  // Gunakan NodeJS yang sudah dikonfigurasi di Jenkins Tools
+        nodejs 'Node-20'
     }
     
     parameters {
@@ -32,12 +33,6 @@ pipeline {
         NODE_VERSION = '20.x'
         JAVA_VERSION = '11'
         APPIUM_VERSION = 'latest'
-        
-        // Email configuration (load from Jenkins credentials)
-        EMAIL_USER = credentials('EMAIL_USER')
-        EMAIL_PASS = credentials('EMAIL_PASS')
-        IMAP_HOST = credentials('IMAP_HOST')
-        IMAP_PORT = credentials('IMAP_PORT')
     }
     
     stages {
@@ -146,16 +141,36 @@ pipeline {
                 echo "Running Appium Android tests with API Level ${params.ANDROID_API_LEVEL}..."
                 
                 script {
-                    // Create email config
-                    sh """
-                        mkdir -p appium/config
-                        cat > appium/config/email.env << EOF
+                    // Create email config (only if credentials exist)
+                    try {
+                        withCredentials([
+                            string(credentialsId: 'EMAIL_USER', variable: 'EMAIL_USER'),
+                            string(credentialsId: 'EMAIL_PASS', variable: 'EMAIL_PASS'),
+                            string(credentialsId: 'IMAP_HOST', variable: 'IMAP_HOST'),
+                            string(credentialsId: 'IMAP_PORT', variable: 'IMAP_PORT')
+                        ]) {
+                            sh """
+                                mkdir -p appium/config
+                                cat > appium/config/email.env << EOF
 EMAIL_USER=${EMAIL_USER}
 EMAIL_PASS=${EMAIL_PASS}
 IMAP_HOST=${IMAP_HOST}
 IMAP_PORT=${IMAP_PORT}
 EOF
-                    """
+                            """
+                        }
+                    } catch (Exception e) {
+                        echo "Warning: Email credentials not found. Email tests may fail."
+                        sh """
+                            mkdir -p appium/config
+                            cat > appium/config/email.env << EOF
+EMAIL_USER=test@example.com
+EMAIL_PASS=dummy
+IMAP_HOST=imap.gmail.com
+IMAP_PORT=993
+EOF
+                        """
+                    }
                     
                     // Install and setup Appium
                     sh """
