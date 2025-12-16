@@ -35,7 +35,10 @@ pipeline {
         stage('Setup') {
             steps {
                 sh '''
+                    export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                    echo "Node path: $(which node)"
                     node --version
+                    npm --version
                     npm ci
                 '''
             }
@@ -47,6 +50,7 @@ pipeline {
                     def specArg = params.TEST_SPEC ? "--spec cypress/${params.TEST_SPEC}" : "--spec 'cypress/e2e/**/*.cy.ts'"
                     
                     sh """
+                        export PATH="/usr/local/bin:/opt/homebrew/bin:\$PATH"
                         npx cypress run \
                             --browser ${params.BROWSER} \
                             --config-file cypress/cypress.config.ts \
