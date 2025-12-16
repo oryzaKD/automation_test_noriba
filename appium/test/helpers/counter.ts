@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const STATE_FILE = path.resolve(__dirname, '../../.test-state.json');
 

@@ -56,7 +56,7 @@ jobs:
           script: |
             npm i -g appium@^3.0.2
             appium driver install uiautomator2
-            nohup appium -p 4723 > appium.log 2>&1 &
+            nohup appium -p 4725 > appium.log 2>&1 &
             sleep 5
             if [ -n "${{ secrets.GMAIL_CLIENT_ID }}" ] && [ -n "${{ secrets.GMAIL_CLIENT_SECRET }}" ] && [ -n "${{ secrets.GMAIL_REFRESH_TOKEN }}" ] && [ -n "${{ secrets.GMAIL_USER }}" ]; then
               npm test

@@ -59,7 +59,7 @@ appium driver install uiautomator2
 
 1. **Start Appium Server**
    ```bash
-   appium -p 4723
+   appium -p 4725
    ```
 
 2. **Start Android Emulator**
@@ -219,8 +219,8 @@ npm run test:email-connection    # Test email connection
 
 ### Appium Server Won't Start
 ```bash
-# Check if port 4723 is already in use
-lsof -i :4723
+# Check if port 4725 is already in use
+lsof -i :4725
 
 # Kill process if needed
 kill -9 <PID>

@@ -114,12 +114,12 @@ jobs:
             adb shell getprop sys.boot_completed
             
             echo "=== Starting Appium Server ==="
-            appium -p 4723 > appium.log 2>&1 &
+            appium -p 4725 > appium.log 2>&1 &
             APPIUM_PID=$!
             echo "Appium PID: $APPIUM_PID"
             
             echo "=== Waiting for Appium Server ==="
-            timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do echo "Waiting for Appium..."; sleep 2; done' || exit 1
+            timeout 30 bash -c 'until curl -s http://localhost:4725/status > /dev/null; do echo "Waiting for Appium..."; sleep 2; done' || exit 1
             echo "Appium server is ready"
             
             echo "=== Running WDIO Tests ==="

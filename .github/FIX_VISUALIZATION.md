@@ -17,7 +17,7 @@
                     ▼
          ┌────────────────────────┐
          │  2. Start Appium       │◄─── ⚠️ Started too early!
-         │     Server (port 4723) │
+         │     Server (port 4725) │
          └──────────┬─────────────┘
                     │
                     ▼
@@ -117,12 +117,12 @@
 ```yaml
 - name: Start Appium Server
   run: |
-    appium -p 4723 > appium.log 2>&1 &
+    appium -p 4725 > appium.log 2>&1 &
     echo "APPIUM_PID=$!" >> $GITHUB_ENV
 
 - name: Wait for Appium Server
   run: |
-    timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do sleep 1; done' || exit 1
+    timeout 30 bash -c 'until curl -s http://localhost:4725/status > /dev/null; do sleep 1; done' || exit 1
 
 - name: Run Appium Tests
   uses: reactivecircus/android-emulator-runner@v2
@@ -158,12 +158,12 @@
       
       # 5. Start Appium (NOW, not before!)
       echo "=== Starting Appium Server ==="
-      appium -p 4723 > appium.log 2>&1 &
+      appium -p 4725 > appium.log 2>&1 &
       APPIUM_PID=$!
       
       # 6. Wait for Appium
       echo "=== Waiting for Appium Server ==="
-      timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do sleep 2; done'
+      timeout 30 bash -c 'until curl -s http://localhost:4725/status > /dev/null; do sleep 2; done'
       
       # 7. Run tests
       echo "=== Running WDIO Tests ==="
@@ -349,7 +349,7 @@ Device UDID: emulator-5554
 
 === Starting Appium Server ===
 Appium PID: 12345
-✓ Appium server started on port 4723
+✓ Appium server started on port 4725
 
 === Waiting for Appium Server ===
 Checking Appium status...

@@ -81,10 +81,10 @@ EOF
                         adb devices -l
                         
                         # Start Appium
-                        appium -p 4723 > appium.log 2>&1 &
+                        appium -p 4725 > appium.log 2>&1 &
                         echo \$! > appium.pid
                         
-                        timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do sleep 2; done'
+                        timeout 30 bash -c 'until curl -s http://localhost:4725/status > /dev/null; do sleep 2; done'
                     """
                     
                     try {

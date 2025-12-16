@@ -67,7 +67,7 @@ export class ImapEmailHelper {
                 const checkForToken = () => {
                     if (tokenFound) return;
 
-                    this.imap.openBox('INBOX', false, (err: unknown, box: any) => {
+                    this.imap.openBox('INBOX', false, (err: unknown, _box: any) => {
                         if (err) {
                             console.log('Error opening inbox:', err);
                             setTimeout(checkForToken, 5000);

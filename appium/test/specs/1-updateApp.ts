@@ -15,7 +15,7 @@ describe('It should update App', () => {
             await driver.pause(2000); 
 
             //Click Dev App
-            await $('(//android.view.ViewGroup[@resource-id="dev.firebase.appdistribution:id/row"])[2]').click()
+            await $('(//android.view.ViewGroup[@resource-id="dev.firebase.appdistribution:id/row"])[3]').click()
 
             //Click Download Button
             await $('//android.view.ViewGroup[@resource-id="dev.firebase.appdistribution:id/download_button"]').click()

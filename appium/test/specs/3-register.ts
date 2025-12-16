@@ -2,7 +2,8 @@ import { expect } from '@wdio/globals'
 import Page from '../pageobjects/page';
 import { EmailHelper } from '../helpers/emailHelper';
 import { ImapEmailHelper } from '../helpers/imapEmailHelper';
-import { nextSequence } from '../helpers/counter';
+// Uncomment if using dynamic test data:
+// import { nextSequence } from '../helpers/counter';
 
 describe('Register application', () => {
   let page: Page;
@@ -32,7 +33,7 @@ describe('Register application', () => {
       console.log('Noriba element clicked!');
 
       // Allow permission notification
-      await $('//android.widget.Button[@resource-id="com.android.permissioncontroller:id/permission_allow_button"]').click()
+      // await $('//android.widget.Button[@resource-id="com.android.permissioncontroller:id/permission_allow_button"]').click()
 
       //Click button masuk
       await $('//android.widget.Button[@content-desc="Buat Akun/Masuk"]').click()
@@ -41,9 +42,9 @@ describe('Register application', () => {
       await $('//android.widget.Button[@content-desc="Buat Akun"]').click()
 
       //Click Ketentuan Layanan dan Kebijakan Privasi
-      await $('//android.widget.Button[@content-desc="Ketentuan Layanan "]').click()
+      await $('//android.view.View[@content-desc="Ketentuan Layanan "]').click()
       await $('//android.widget.Button[@content-desc="Back"]').click()
-      await $('//android.widget.Button[@content-desc="Kebijakan Privasi "]').click()
+      await $('//android.view.View[@content-desc="Kebijakan Privasi "]').click()
       await $('//android.widget.Button[@content-desc="Back"]').click()
 
       //Click Daftar
@@ -85,6 +86,7 @@ describe('Register application', () => {
     await $('//android.widget.FrameLayout[@resource-id="android:id/content"]/android.widget.FrameLayout/android.view.View/android.view.View/android.view.View/android.view.View/android.widget.ImageView[2]').click();
 
     //Click Daftar
+    await page.pressBackButtonMultiple(1)
     await $('//android.widget.Button[@content-desc="Lanjut"]').click()
     await driver.pause(3000)
 
@@ -98,7 +100,7 @@ describe('Register application', () => {
   });
 
   it("Registrasi dengan format No HP tidak sesuai", async () => {
-    const testEmail = "odew.odew12+1@gmail.com"; // Ganti dengan email real Anda
+    const testEmail = "odew.odew12@gmail.com"; // Ganti dengan email real Anda
     const testPhone = "test088905450134";
 
     // Fill registration form with invalid credentials
@@ -110,6 +112,7 @@ describe('Register application', () => {
     await $('//android.widget.FrameLayout[@resource-id="android:id/content"]/android.widget.FrameLayout/android.view.View/android.view.View/android.view.View/android.view.View/android.widget.EditText[2]').setValue(testPhone);
 
     //Click Daftar
+    await page.pressBackButtonMultiple(1)
     await $('//android.widget.Button[@content-desc="Lanjut"]').click()
     await driver.pause(3000)
 
@@ -141,6 +144,7 @@ describe('Register application', () => {
     await $('//android.widget.FrameLayout[@resource-id="android:id/content"]/android.widget.FrameLayout/android.view.View/android.view.View/android.view.View/android.view.View/android.widget.ImageView[2]').click();
 
     //Click Daftar
+    await page.pressBackButtonMultiple(1)
     await $('//android.widget.Button[@content-desc="Lanjut"]').click()
     await driver.pause(3000)
 
@@ -169,6 +173,7 @@ describe('Register application', () => {
     await $('//android.widget.FrameLayout[@resource-id="android:id/content"]/android.widget.FrameLayout/android.view.View/android.view.View/android.view.View/android.view.View/android.widget.ImageView[2]').click();
 
     //Click Daftar
+    await page.pressBackButtonMultiple(1)
     await $('//android.widget.Button[@content-desc="Lanjut"]').click()
     await driver.pause(3000)
 
@@ -191,6 +196,7 @@ describe('Register application', () => {
     await $('//android.widget.FrameLayout[@resource-id="android:id/content"]/android.widget.FrameLayout/android.view.View/android.view.View/android.view.View/android.view.View/android.widget.ImageView[2]').click();
 
     //Click Daftar
+    await page.pressBackButtonMultiple(1)
     await $('//android.widget.Button[@content-desc="Lanjut"]').click()
     await driver.pause(3000)
 
@@ -205,10 +211,12 @@ describe('Register application', () => {
 
   it('Validasi Kode OTP', async function () {
     this.timeout(480000);
-    const seq = nextSequence('register');
-    const testEmail = `odew.odew12+test${seq}@gmail.com`;
+    // Uncomment below lines to use dynamic test data:
+    // const seq = nextSequence('register');
+    // const testEmail = `odew.odew12+test${seq}@gmail.com`;
     // const phoneSuffix = ((seq % 900) + 100).toString(); // 3 digits 100-999
-    const testPhone = `08311111111${seq}`; // total 13 digits, starts with 08
+    const testEmail = `odew.odew12+tes1@gmail.com`;
+    const testPhone = "082339582790";
     const wrongOTP = "123456";
 
     // Fill registration form
@@ -233,6 +241,7 @@ describe('Register application', () => {
     }
 
     // Klik Lanjut
+    await page.pressBackButtonMultiple(1)
     await $('//android.widget.Button[@content-desc="Lanjut"]').click();
 
     // Wait for email verification screen
@@ -263,6 +272,7 @@ describe('Register application', () => {
 
     // Coba masukkan OTP yang sudah kadaluarsa dan pastikan muncul error kadaluarsa
     console.log('⌨️  Memasukkan OTP yang sudah kadaluarsa...');
+    await tokenInputField.click();
     await $('//android.widget.EditText').clearValue();
     await tokenInputField.waitForDisplayed({ timeout: 10000 });
     await tokenInputField.click();

@@ -14,7 +14,7 @@ export const config: Options.Testrunner & Capabilities.WithRequestedTestrunnerCa
     runner: 'local',
     tsConfigPath: './test/tsconfig.json',
     
-    port: 4723,
+    port: 4725,
     //
     // ==================
     // Specify Test Files
@@ -70,6 +70,8 @@ export const config: Options.Testrunner & Capabilities.WithRequestedTestrunnerCa
         'appium:autoGrantPermissions': true,
         'appium:noReset': true,
         'appium:fullReset': false,
+        // Ignore Hidden API policy error on physical devices
+        'appium:ignoreHiddenApiPolicyError': true,
         // Use UDID from environment if available (useful in CI/CD)
         ...(process.env.DEVICE_UDID && { 'appium:udid': process.env.DEVICE_UDID }),
     }],
@@ -121,7 +123,13 @@ export const config: Options.Testrunner & Capabilities.WithRequestedTestrunnerCa
     // Services take over a specific job you don't want to take care of. They enhance
     // your test setup with almost no effort. Unlike plugins, they don't add new
     // commands. Instead, they hook themselves up into the test process.
-    services: ['appium'],
+    services: [
+        ['appium', {
+            args: {
+                port: 4725
+            }
+        }]
+    ],
 
     // Framework you want to run your specs with.
     // The following are supported: Mocha, Jasmine, and Cucumber

@@ -1,4 +1,3 @@
-import { expect } from '@wdio/globals'
 import Page from '../pageobjects/page';
 
 describe('Request Product', () => {
