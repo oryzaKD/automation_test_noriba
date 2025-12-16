@@ -34,6 +34,9 @@ pipeline {
         NODE_VERSION = '20.x'
         JAVA_VERSION = '11'
         APPIUM_VERSION = 'latest'
+        
+        // Add Node.js to PATH (for macOS with Homebrew or nvm)
+        PATH = "/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
     }
     
     stages {
