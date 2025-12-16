@@ -1,10 +1,11 @@
 pipeline {
     agent any
     
-    // Use NodeJS tool configured in Jenkins
-    tools {
-        nodejs 'Node-20'
-    }
+    // NodeJS is already installed on the system (/usr/local/bin/node)
+    // Uncomment below if you want to use Jenkins NodeJS tool instead:
+    // tools {
+    //     nodejs 'Node-20'
+    // }
     
     parameters {
         choice(
