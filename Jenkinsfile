@@ -1,6 +1,10 @@
 pipeline {
     agent any
     
+    tools {
+        nodejs 'Node-20'  // Gunakan NodeJS yang sudah dikonfigurasi di Jenkins Tools
+    }
+    
     parameters {
         choice(
             name: 'TEST_TYPE',
@@ -200,12 +204,12 @@ EOF
                         // Start Appium server
                         sh """
                             echo "Starting Appium server..."
-                            appium -p 4723 > appium.log 2>&1 &
+                            appium -p 4725 > appium.log 2>&1 &
                             APPIUM_PID=\$!
                             echo \$APPIUM_PID > appium.pid
                             
                             echo "Waiting for Appium server..."
-                            timeout 30 bash -c 'until curl -s http://localhost:4723/status > /dev/null; do echo "Waiting..."; sleep 2; done'
+                            timeout 30 bash -c 'until curl -s http://localhost:4725/status > /dev/null; do echo "Waiting..."; sleep 2; done'
                             echo "Appium server is ready"
                         """
                         
