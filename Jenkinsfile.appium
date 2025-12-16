@@ -1,14 +1,17 @@
 // Dedicated pipeline for Appium Android tests only
 pipeline {
-    agent {
-        label 'macos' // Use macOS agent for Android emulator
-    }
+    agent any
     
     parameters {
         choice(
+            name: 'TEST_TYPE',
+            choices: ['full-test', 'basic-checks-only'],
+            description: 'Select test type: full-test (run all Appium tests) or basic-checks-only (TypeScript check only)'
+        )
+        choice(
             name: 'ANDROID_API_LEVEL',
             choices: ['30', '29', '31', '33'],
-            description: 'Android API Level'
+            description: 'Android API Level (only for full-test)'
         )
         string(
             name: 'TEST_SPEC',
@@ -32,39 +35,120 @@ pipeline {
         stage('Setup') {
             steps {
                 sh '''
+                    export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                    echo "Node path: $(which node)"
                     node --version
+                    npm --version
                     npm ci
+                '''
+            }
+        }
+        
+        stage('Basic Checks') {
+            when {
+                expression { 
+                    params.TEST_TYPE == 'basic-checks-only' 
+                }
+            }
+            parallel {
+                stage('TypeScript Check - Appium Config') {
+                    steps {
+                        echo "Running TypeScript compilation check for Appium config..."
+                        sh '''
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                            npx tsc --noEmit -p appium/tsconfig.json
+                        '''
+                    }
+                }
+                stage('TypeScript Check - Test Specs') {
+                    steps {
+                        echo "Running TypeScript check for test specs..."
+                        sh '''
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                            npx tsc --noEmit -p appium/test/tsconfig.json
+                        '''
+                    }
+                }
+                stage('Dependency Audit') {
+                    steps {
+                        echo "Running npm audit..."
+                        sh '''
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                            npm audit --audit-level=moderate || true
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Setup Appium') {
+            when {
+                expression { 
+                    params.TEST_TYPE == 'full-test' 
+                }
+            }
+            steps {
+                sh '''
+                    export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
                     npm install -g appium@latest
-                    appium driver install uiautomator2
+                    appium driver install uiautomator2 || true
+                    appium --version
                 '''
             }
         }
         
         stage('Setup Email Config') {
+            when {
+                expression { 
+                    params.TEST_TYPE == 'full-test' 
+                }
+            }
             steps {
-                withCredentials([
-                    string(credentialsId: 'EMAIL_USER', variable: 'EMAIL_USER'),
-                    string(credentialsId: 'EMAIL_PASS', variable: 'EMAIL_PASS'),
-                    string(credentialsId: 'IMAP_HOST', variable: 'IMAP_HOST'),
-                    string(credentialsId: 'IMAP_PORT', variable: 'IMAP_PORT')
-                ]) {
-                    sh '''
-                        mkdir -p appium/config
-                        cat > appium/config/email.env << EOF
+                script {
+                    try {
+                        withCredentials([
+                            string(credentialsId: 'EMAIL_USER', variable: 'EMAIL_USER'),
+                            string(credentialsId: 'EMAIL_PASS', variable: 'EMAIL_PASS'),
+                            string(credentialsId: 'IMAP_HOST', variable: 'IMAP_HOST'),
+                            string(credentialsId: 'IMAP_PORT', variable: 'IMAP_PORT')
+                        ]) {
+                            sh '''
+                                mkdir -p appium/config
+                                cat > appium/config/email.env << EOF
 EMAIL_USER=${EMAIL_USER}
 EMAIL_PASS=${EMAIL_PASS}
 IMAP_HOST=${IMAP_HOST}
 IMAP_PORT=${IMAP_PORT}
 EOF
-                    '''
+                            '''
+                        }
+                    } catch (Exception e) {
+                        echo "Warning: Email credentials not found. Email tests may fail."
+                        sh '''
+                            mkdir -p appium/config
+                            cat > appium/config/email.env << EOF
+EMAIL_USER=test@example.com
+EMAIL_PASS=dummy
+IMAP_HOST=imap.gmail.com
+IMAP_PORT=993
+EOF
+                        '''
+                    }
                 }
             }
         }
         
         stage('Run Appium Tests') {
+            when {
+                expression { 
+                    params.TEST_TYPE == 'full-test' 
+                }
+            }
             steps {
                 script {
                     sh """
+                        export PATH="/usr/local/bin:/opt/homebrew/bin:\$PATH"
+                        
                         # Create AVD
                         avdmanager create avd -n test_avd_${params.ANDROID_API_LEVEL} \
                             -k "system-images;android-${params.ANDROID_API_LEVEL};google_apis;x86_64" \
@@ -89,9 +173,15 @@ EOF
                     
                     try {
                         if (params.TEST_SPEC) {
-                            sh "npx wdio run ./appium/wdio.conf.ts --spec ./appium/${params.TEST_SPEC}"
+                            sh """
+                                export PATH="/usr/local/bin:/opt/homebrew/bin:\$PATH"
+                                npx wdio run ./appium/wdio.conf.ts --spec ./appium/${params.TEST_SPEC}
+                            """
                         } else {
-                            sh 'npm run wdio:appium'
+                            sh '''
+                                export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+                                npm run wdio:appium
+                            '''
                         }
                     } finally {
                         sh '''
