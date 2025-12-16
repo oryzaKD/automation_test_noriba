@@ -24,7 +24,6 @@
     "webdriverio": "^9.19.2"
   },
   "devDependencies": {
-    "@types/cypress": "^0.1.6",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.3.1",
     "@wdio/appium-service": "^9.19.2",
